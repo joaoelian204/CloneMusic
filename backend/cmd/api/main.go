@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"phantom-beats-backend/internal/handlers"
@@ -24,6 +25,7 @@ func main() {
 
 	// Middlewares
 	app.Use(recover.New())
+	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept",
@@ -43,6 +45,17 @@ func main() {
 	// Handlers
 	proxyHandler := handlers.NewProxyHandler(providerManager)
 	searchHandler := handlers.NewSearchHandler(providerManager)
+
+	// Endpoints base para diagnostico y compatibilidad con plataformas PaaS
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"service": "phantom-beats-backend",
+			"status":  "ok",
+		})
+	})
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
 
 	// Rutas
 	api := app.Group("/api/v1")
