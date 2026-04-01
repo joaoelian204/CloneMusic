@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -54,8 +55,13 @@ func main() {
 	api.Get("/stream/:id", proxyHandler.Stream)
 
 	// Iniciar servidor
-	log.Println("Iniciando Phantom Beats Proxy en el puerto 3000...")
-	if err := app.Listen(":3000"); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
+	}
+
+	log.Printf("Iniciando Phantom Beats Proxy en el puerto %s...", port)
+	if err := app.Listen(":" + port); err != nil {
 		log.Fatalf("Error al arrancar el servidor: %v", err)
 	}
 }
