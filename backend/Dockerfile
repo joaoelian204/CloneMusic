@@ -15,14 +15,19 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 
-FROM gcr.io/distroless/static-debian12:nonroot AS runtime
+FROM alpine:3.21 AS runtime
 
 WORKDIR /app
+
+# Certificados TLS y utilidades para depuracion en entorno cloud
+RUN apk add --no-cache ca-certificates curl \
+    && addgroup -S app \
+    && adduser -S -G app app
 
 COPY --from=builder /out/api /app/api
 
 EXPOSE 3000
 
-USER nonroot:nonroot
+USER app:app
 
 ENTRYPOINT ["/app/api"]
