@@ -1,0 +1,71 @@
+# =========================
+# Carpetas solicitadas
+# =========================
+mobile-app/
+mobil_app/
+node_modules/
+# Documentacion interna/no publica
+docs/
+docs/**
+dcs/
+.agents/
+.agenst/
+
+# =========================
+# Git / editor / sistema
+# =========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs y temporales
+# =========================
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# =========================
+# Entorno / secretos
+# =========================
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# =========================
+# Go (backend)
+# =========================
+backend/bin/
+backend/.cache/
+backend/coverage.out
+backend/*.test
+
+# =========================
+# Android / Gradle
+# =========================
+android-native/.gradle/
+android-native/build/
+android-native/app/build/
+android-native/local.properties
+android-native/*.hprof
+
+# =========================
+# Node / front
+# =========================
+**/node_modules/
+**/dist/
+**/.vite/
+
+# =========================
+# General build outputs
+# =========================
+out/
+build/
+dist/
+tmp/
+.cache/

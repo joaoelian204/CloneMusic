@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <gradient
+                android:angle="315"
+                android:startColor="#3A3128"
+                android:centerColor="#4A3D31"
+                android:endColor="#1A1A1E" />
+        </shape>
+    </item>
+
+    <item android:gravity="center" android:drawable="@android:drawable/ic_menu_report_image" />
+</layer-list>
