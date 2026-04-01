@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Build outputs
+bin/
+build/
+dist/
+out/
+
+# Local caches and tooling
+.cache/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temp
+*.log
+*.tmp
+*.temp
+
+# Test artifacts
+coverage.out
+*.test
+
+# Keep Docker context small
+-p/
