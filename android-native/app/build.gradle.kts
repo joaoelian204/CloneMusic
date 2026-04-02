@@ -15,6 +15,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        manifestPlaceholders["appLabel"] = "PhantomBeats"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -23,9 +24,25 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            manifestPlaceholders["appLabel"] = "PhantomBeats Pruebas"
+            buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
+            buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
+            buildConfigField("String", "LOCAL_DEVICE_BASE_URL", "\"http://127.0.0.1:3000/\"")
+            buildConfigField("Boolean", "USE_REMOTE_BACKEND", "false")
+        }
+
         getByName("release") {
+            manifestPlaceholders["appLabel"] = "PhantomBeats"
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
+            buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
+            buildConfigField("String", "LOCAL_DEVICE_BASE_URL", "\"http://127.0.0.1:3000/\"")
+            buildConfigField("Boolean", "USE_REMOTE_BACKEND", "true")
         }
     }
     
@@ -38,6 +55,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"

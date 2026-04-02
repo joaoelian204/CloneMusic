@@ -19,6 +19,9 @@ import androidx.work.workDataOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import retrofit2.HttpException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import javax.net.ssl.SSLException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -33,6 +36,23 @@ class SongRepositoryImpl @Inject constructor(
     companion object {
         private const val PENDING_DOWNLOAD_PATH = "__PENDING__"
         private const val DEFAULT_SEARCH_PAGE_SIZE = 25
+    }
+
+    private fun mapStreamError(e: Exception): Exception {
+        val message = when (e) {
+            is HttpException -> when (e.code()) {
+                429 -> "El proveedor de audio está limitado temporalmente (429). Intenta de nuevo en unos segundos."
+                503 -> "El stream no está disponible temporalmente para esta canción. Prueba con otra opción."
+                404 -> "No se encontró stream para esta canción."
+                else -> "Error del servidor al obtener el stream (${e.code()})."
+            }
+            is SocketTimeoutException -> "El stream tardó demasiado en responder."
+            is UnknownHostException -> "No se pudo resolver el servidor de streaming."
+            is SSLException -> "No se pudo establecer una conexión segura para reproducir."
+            is IOException -> "No hay conexión para iniciar la reproducción."
+            else -> e.localizedMessage ?: "No se pudo iniciar la reproducción."
+        }
+        return Exception(message, e)
     }
 
     override suspend fun searchSongs(query: String, mode: String): Result<List<Song>> {
@@ -84,6 +104,9 @@ class SongRepositoryImpl @Inject constructor(
                                 "Error del servidor (${e.code()})."
                             }
                         }
+                        is SocketTimeoutException -> "El servidor tardó demasiado en responder. Intenta de nuevo en unos segundos."
+                        is UnknownHostException -> "No se pudo resolver el servidor. Verifica tu conexión a internet."
+                        is SSLException -> "No se pudo establecer una conexión segura con el servidor."
                         is IOException -> "No hay conexión y no existen resultados guardados sin conexión."
                         else -> e.localizedMessage ?: "No se pudo completar la búsqueda."
                     }
@@ -106,7 +129,7 @@ class SongRepositoryImpl @Inject constructor(
             val streamResult = api.getStreamUrl(song.id)
             Result.success(streamResult.url) // Esta es la URL cruda .googlevideo
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(mapStreamError(e))
         }
     }
 
@@ -166,7 +189,7 @@ class SongRepositoryImpl @Inject constructor(
 
             Result.success(Unit)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(mapStreamError(e))
         }
     }
 }

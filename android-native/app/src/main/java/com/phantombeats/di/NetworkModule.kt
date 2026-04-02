@@ -1,5 +1,6 @@
 package com.phantombeats.di
 
+import com.phantombeats.BuildConfig
 import com.phantombeats.data.remote.api.PhantomApi
 import dagger.Module
 import dagger.Provides
@@ -16,16 +17,20 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // En emulador usar 10.0.2.2; en dispositivo físico por USB usar 127.0.0.1 + adb reverse.
+    // En debug: local (emulador/USB). En release: backend cloud (Render).
     private fun resolveBaseUrl(): String {
+        if (BuildConfig.USE_REMOTE_BACKEND) {
+            return BuildConfig.REMOTE_BASE_URL
+        }
+
         val isEmulator = Build.FINGERPRINT.contains("generic", ignoreCase = true) ||
             Build.MODEL.contains("Emulator", ignoreCase = true) ||
             Build.MANUFACTURER.contains("Genymotion", ignoreCase = true)
 
         return if (isEmulator) {
-            "http://10.0.2.2:3000/"
+            BuildConfig.LOCAL_EMULATOR_BASE_URL
         } else {
-            "http://127.0.0.1:3000/"
+            BuildConfig.LOCAL_DEVICE_BASE_URL
         }
     }
 
@@ -33,8 +38,11 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
+            // Render puede tardar en arrancar en frio; damos margen para evitar falsos "sin conexion".
+            .callTimeout(90, TimeUnit.SECONDS)
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
             // Aquí en un futuro inyectamos Interceptors para el Token JWT
             .build()
     }

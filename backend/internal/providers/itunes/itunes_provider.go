@@ -80,6 +80,11 @@ func (p *ITunesProvider) Search(ctx context.Context, query string) ([]domain.Son
 }
 
 func (p *ITunesProvider) GetStream(ctx context.Context, songID string) (*domain.StreamResult, error) {
+    if _, err := strconv.ParseInt(songID, 10, 64); err != nil {
+        // IDs no numéricos (ej. YouTube) no son compatibles con lookup de iTunes.
+        return nil, domain.ErrStreamFailed
+    }
+
 	endpoint := "https://itunes.apple.com/lookup?id=" + url.QueryEscape(songID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
