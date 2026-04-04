@@ -10,6 +10,7 @@ import com.phantombeats.data.mapper.toDomain
 import com.phantombeats.data.remote.api.PhantomApi
 import com.phantombeats.domain.model.Song
 import com.phantombeats.domain.repository.SongRepository
+import com.phantombeats.domain.repository.StreamResolver
 import java.io.IOException
 import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
@@ -18,6 +19,8 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import retrofit2.HttpException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -30,12 +33,14 @@ class SongRepositoryImpl @Inject constructor(
     private val songDao: SongDao,
     private val favoriteDao: FavoriteDao,
     private val searchHistoryDao: SearchHistoryDao,
-    private val workManager: WorkManager
+    private val workManager: WorkManager,
+    private val streamResolver: StreamResolver
 ) : SongRepository {
 
     companion object {
         private const val PENDING_DOWNLOAD_PATH = "__PENDING__"
         private const val DEFAULT_SEARCH_PAGE_SIZE = 25
+        private const val STREAM_TIMEOUT_MS = 20_000L
     }
 
     private fun mapStreamError(e: Exception): Exception {
@@ -47,6 +52,7 @@ class SongRepositoryImpl @Inject constructor(
                 else -> "Error del servidor al obtener el stream (${e.code()})."
             }
             is SocketTimeoutException -> "El stream tardó demasiado en responder."
+            is TimeoutCancellationException -> "El stream tardó demasiado en responder."
             is UnknownHostException -> "No se pudo resolver el servidor de streaming."
             is SSLException -> "No se pudo establecer una conexión segura para reproducir."
             is IOException -> "No hay conexión para iniciar la reproducción."
@@ -124,10 +130,12 @@ class SongRepositoryImpl @Inject constructor(
             return Result.success("file://${song.localPath}")
         }
 
-        // 2. Solicitamos el audio crudo en streaming al Backend Proxy Go
+        // 2. Extraemos el audio crudo en el cliente con StreamResolver
         return try {
-            val streamResult = api.getStreamUrl(song.id)
-            Result.success(streamResult.url) // Esta es la URL cruda .googlevideo
+            val streamResult = withTimeout(STREAM_TIMEOUT_MS) {
+                streamResolver.getStreamUrl(song.id)
+            }
+            streamResult
         } catch (e: Exception) {
             Result.failure(mapStreamError(e))
         }
@@ -165,13 +173,18 @@ class SongRepositoryImpl @Inject constructor(
                 return Result.success(Unit)
             }
 
-            val streamResult = api.getStreamUrl(song.id)
+            val streamResult = withTimeout(STREAM_TIMEOUT_MS) {
+                streamResolver.getStreamUrl(song.id)
+            }
+            
+            val streamUrl = streamResult.getOrThrow()
+            
             songDao.updateLocalPath(song.id, PENDING_DOWNLOAD_PATH)
             val request = OneTimeWorkRequestBuilder<SongDownloadWorker>()
                 .setInputData(
                     workDataOf(
                         SongDownloadWorker.KEY_SONG_ID to song.id,
-                        SongDownloadWorker.KEY_STREAM_URL to streamResult.url
+                        SongDownloadWorker.KEY_STREAM_URL to streamUrl
                     )
                 )
                 .setBackoffCriteria(

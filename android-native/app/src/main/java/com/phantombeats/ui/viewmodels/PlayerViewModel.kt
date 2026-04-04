@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 import javax.inject.Inject
@@ -17,7 +18,7 @@ sealed class PlayerUiState {
     object Idle : PlayerUiState()
     object Buffering : PlayerUiState()
     data class Playing(val song: Song, val useLocalCache: Boolean = false) : PlayerUiState()
-    data class Error(val message: String) : PlayerUiState()
+    data class Error(val message: String, val song: Song? = null) : PlayerUiState()
 }
 
 @HiltViewModel
@@ -40,97 +41,51 @@ class PlayerViewModel @Inject constructor(
     private val _shuffleEnabled = MutableStateFlow(false)
     val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
 
-    fun playSong(song: Song) {
-        if (playbackQueue.value.none { it.id == song.id }) {
-            playbackQueue.value = listOf(song)
-            currentQueueIndex = 0
-        } else {
-            currentQueueIndex = playbackQueue.value.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+    init {
+        viewModelScope.launch {
+            playerController.lastErrorMessage.collectLatest { errorMessage ->
+                if (!errorMessage.isNullOrBlank()) {
+                    _uiState.value = PlayerUiState.Error(
+                        message = "Reproducción fallida: $errorMessage",
+                        song = currentSong.value
+                    )
+                }
+            }
         }
+    }
 
-        playSongInternal(song)
+    fun playSong(song: Song) {
+        playSongsQueue(listOf(song), 0)
     }
 
     fun playSongsQueue(songs: List<Song>, startIndex: Int) {
         if (songs.isEmpty()) return
-
         playbackQueue.value = songs
         currentQueueIndex = startIndex.coerceIn(0, songs.lastIndex)
-        playSongInternal(songs[currentQueueIndex])
+        _uiState.value = PlayerUiState.Buffering
+        playerController.playSongs(songs, currentQueueIndex)
+        val song = songs.getOrNull(currentQueueIndex)
+        if (song != null) {
+            _uiState.value = PlayerUiState.Playing(song = song, useLocalCache = false)
+        }
     }
 
     fun playNextInQueue() {
-        val queue = playbackQueue.value
-        if (queue.isEmpty()) return
-
-        currentQueueIndex = when {
-            queue.size == 1 -> 0
-            _shuffleEnabled.value -> {
-                var next = currentQueueIndex
-                while (next == currentQueueIndex) {
-                    next = Random.nextInt(queue.size)
-                }
-                next
-            }
-            else -> {
-                val current = if (currentQueueIndex in queue.indices) currentQueueIndex else 0
-                (current + 1) % queue.size
-            }
-        }
-
-        playSongInternal(queue[currentQueueIndex])
+        playerController.playNext()
     }
 
     fun playPreviousInQueue() {
-        val queue = playbackQueue.value
-        if (queue.isEmpty()) return
-
-        val current = if (currentQueueIndex in queue.indices) currentQueueIndex else 0
-        currentQueueIndex = if (current <= 0) queue.lastIndex else current - 1
-        playSongInternal(queue[currentQueueIndex])
+        playerController.playPrevious()
     }
 
     fun toggleShuffleMode() {
         _shuffleEnabled.value = !_shuffleEnabled.value
+        playerController.setShuffleMode(_shuffleEnabled.value)
     }
 
     fun setShuffleMode(enabled: Boolean) {
         _shuffleEnabled.value = enabled
-    }
-
-    private fun playSongInternal(song: Song) {
-        _uiState.value = PlayerUiState.Buffering
-
-        val localUri = song.localPath
-        if (
-            song.provider == "Local" &&
-            !localUri.isNullOrBlank() &&
-            (localUri.startsWith("content://") || localUri.startsWith("file://"))
-        ) {
-            playerController.playSong(song, localUri)
-            _uiState.value = PlayerUiState.Playing(song = song, useLocalCache = true)
-            return
-        }
-
-        viewModelScope.launch {
-            // 1. Resolver la URL (Puede ser Local File o HTTP Stream de Go)
-            val streamResult = repository.getStreamUrl(song)
-
-            streamResult.onSuccess { streamUrl ->
-                // 2. Darle play en ExoPlayer
-                playerController.playSong(song, streamUrl)
-                
-                // 3. Registrar "Escuchada" para el historial
-                repository.markAsPlayed(song.id)
-
-                _uiState.value = PlayerUiState.Playing(
-                    song = song, 
-                    useLocalCache = streamUrl.startsWith("file://")
-                )
-            }.onFailure { error ->
-                _uiState.value = PlayerUiState.Error("Stream no disponible: ${error.message}")
-            }
-        }
+        playerController.setShuffleMode(enabled)
     }
 
     fun togglePlayPause() {

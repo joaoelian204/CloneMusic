@@ -15,9 +15,4 @@ interface PhantomApi {
         @Query("offset") offset: Int? = null,
         @Query("mode") mode: String? = null
     ): List<SongDto>
-
-    @GET("/api/v1/stream/{id}")
-    suspend fun getStreamUrl(
-        @Path("id") songId: String
-    ): StreamResultDto
 }

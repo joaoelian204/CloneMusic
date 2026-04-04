@@ -66,7 +66,11 @@ fun FullPlayerScreen(
     val positionMs by playerViewModel.positionMs.collectAsState()
     val durationMs by playerViewModel.durationMs.collectAsState()
 
-    val fallbackSong = (uiState as? PlayerUiState.Playing)?.song
+    val fallbackSong = when (val state = uiState) {
+        is PlayerUiState.Playing -> state.song
+        is PlayerUiState.Error -> state.song
+        else -> null
+    }
     val song = currentSong ?: fallbackSong
     val progress = if (durationMs > 0L) positionMs.toFloat() / durationMs.toFloat() else 0f
     var selectedSongForPlaylist by remember { mutableStateOf<com.phantombeats.domain.model.Song?>(null) }

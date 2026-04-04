@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -33,11 +34,17 @@ class PhantomPlayerController @Inject constructor(
     private val context: Context
 ) {
 
+    private data class PendingPlayback(
+        val songs: List<Song>,
+        val startIndex: Int
+    )
+
     private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
     private var progressJob: Job? = null
+    private var pendingPlayback: PendingPlayback? = null
 
     // Flujos reactivos de Compose para dibujar la UI (Play/Pause, progreso, etc)
     private val _isPlaying = MutableStateFlow(false)
@@ -55,6 +62,12 @@ class PhantomPlayerController @Inject constructor(
     private val _bufferedPositionMs = MutableStateFlow(0L)
     val bufferedPositionMs: StateFlow<Long> = _bufferedPositionMs.asStateFlow()
 
+    private val _lastErrorMessage = MutableStateFlow<String?>(null)
+    val lastErrorMessage: StateFlow<String?> = _lastErrorMessage.asStateFlow()
+    
+    // Mantenemos referencia de las canciones para buscarlas por mediaId
+    private var currentPlaylist = emptyList<Song>()
+
     init {
         initializeController()
     }
@@ -69,7 +82,16 @@ class PhantomPlayerController @Inject constructor(
         mediaControllerFuture?.addListener({
             mediaController = mediaControllerFuture?.get()
             setupPlayerListeners()
+            playPendingIfAny()
         }, MoreExecutors.directExecutor())
+    }
+
+    private fun playPendingIfAny() {
+        val pending = pendingPlayback ?: return
+        val controller = mediaController ?: return
+
+        pendingPlayback = null
+        startPlayback(controller, pending.songs, pending.startIndex)
     }
 
     private fun setupPlayerListeners() {
@@ -83,6 +105,15 @@ class PhantomPlayerController @Inject constructor(
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (mediaItem != null) {
+                    _currentSong.value = currentPlaylist.find { it.id == mediaItem.mediaId }
+                }
+                syncProgressFromController()
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                _isPlaying.value = false
+                _lastErrorMessage.value = error.localizedMessage ?: "No se pudo reproducir el audio."
                 syncProgressFromController()
             }
         })
@@ -111,33 +142,70 @@ class PhantomPlayerController @Inject constructor(
     }
 
     /**
-     * Ordena a Media3 ExoPlayer que reproduzca un Stream URL 
-     * inyectándole Metadata para que el SO dibuje la notificación del LockScreen.
+     * Ordena a Media3 ExoPlayer que reproduzca una lista de canciones 
+     * activando Gapless Playback nativo.
+     * Soporta URLs crudas "phantom-yt://" para delegar Client-Side Stream Resolution.
      */
-    fun playSong(song: Song, streamUrl: String) {
-        val metadataBuilder = MediaMetadata.Builder()
-            .setTitle(song.title)
-            .setArtist(song.artist)
-
-        if (song.coverUrl.isNotBlank()) {
-            metadataBuilder.setArtworkUri(android.net.Uri.parse(song.coverUrl))
+    fun playSongs(songs: List<Song>, startIndex: Int) {
+        val controller = mediaController
+        if (controller == null) {
+            pendingPlayback = PendingPlayback(songs = songs, startIndex = startIndex)
+            _currentSong.value = songs.getOrNull(startIndex)
+            _isPlaying.value = false
+            return
         }
 
-        val mediaItem = MediaItem.Builder()
-            .setMediaId(song.id)
-            .setUri(streamUrl)
-            .setMediaMetadata(metadataBuilder.build())
-            .build()
+        startPlayback(controller, songs, startIndex)
+    }
 
-        _currentSong.value = song
+    private fun startPlayback(controller: MediaController, songs: List<Song>, startIndex: Int) {
+        _lastErrorMessage.value = null
+        currentPlaylist = songs
 
-        mediaController?.apply {
-            setMediaItem(mediaItem)
+        val mediaItems = songs.map { song ->
+            val metadataBuilder = MediaMetadata.Builder()
+                .setTitle(song.title)
+                .setArtist(song.artist)
+
+            if (song.coverUrl.isNotBlank()) {
+                metadataBuilder.setArtworkUri(android.net.Uri.parse(song.coverUrl))
+            }
+            
+            // Usamos phantom-yt (y ExoPlayer lo extrae gracias al MediaModule / ResolvingDataSource)
+            val directUri = if (song.isDownloaded && song.localPath != null) {
+                "file://${song.localPath}"
+            } else {
+                "phantom-yt:${song.id}"
+            }
+
+            MediaItem.Builder()
+                .setMediaId(song.id)
+                .setUri(directUri)
+                .setMediaMetadata(metadataBuilder.build())
+                .build()
+        }
+
+        _currentSong.value = songs.getOrNull(startIndex)
+
+        controller.apply {
+            setMediaItems(mediaItems, startIndex, C.TIME_UNSET)
             prepare()
-            play() // Ejecuta el buffering y dispara reproducción!
+            play()
         }
 
         syncProgressFromController()
+    }
+
+    fun playNext() {
+        mediaController?.seekToNext()
+    }
+
+    fun playPrevious() {
+        mediaController?.seekToPrevious()
+    }
+
+    fun setShuffleMode(enabled: Boolean) {
+        mediaController?.shuffleModeEnabled = enabled
     }
 
     fun togglePlayPause() {

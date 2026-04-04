@@ -10,5 +10,5 @@ import (
 type AudioProvider interface {
 	Name() string
 	Search(ctx context.Context, query string) ([]domain.Song, error)
-	GetStream(ctx context.Context, songID string) (*domain.StreamResult, error)
+	
 }

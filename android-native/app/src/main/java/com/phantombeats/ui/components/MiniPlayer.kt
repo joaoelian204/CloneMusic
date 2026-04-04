@@ -37,9 +37,12 @@ fun MiniPlayer(
 
     val song = currentSong ?: when (val state = uiState) {
         is PlayerUiState.Playing -> state.song
+        is PlayerUiState.Error -> state.song
         is PlayerUiState.Buffering -> null
         else -> null
     }
+
+    val streamErrorMessage = (uiState as? PlayerUiState.Error)?.message
 
     val isOffline = uiState is PlayerUiState.Playing && (uiState as PlayerUiState.Playing).useLocalCache
     val isPendingDownload = song?.localPath?.startsWith("__PENDING__") == true
@@ -71,6 +74,7 @@ fun MiniPlayer(
             isOffline = isOffline,
             isDownloadPending = isPendingDownload,
             isDownloaded = isDownloaded,
+            streamErrorMessage = streamErrorMessage,
             onTogglePlay = { playerViewModel.togglePlayPause() },
             onNext = { playerViewModel.playNextInQueue() },
             onToggleFavorite = { favoriteSong ->

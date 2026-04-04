@@ -37,7 +37,8 @@ android {
         getByName("release") {
             manifestPlaceholders["appLabel"] = "PhantomBeats"
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
             buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
@@ -98,6 +99,8 @@ dependencies {
     val media3_version = "1.2.0"
     implementation("androidx.media3:media3-exoplayer:$media3_version")
     implementation("androidx.media3:media3-session:$media3_version")
+    implementation("androidx.media3:media3-datasource-okhttp:$media3_version") // Necesario para OkHttp caching
+    implementation("com.github.maxrave-dev:kotlin-youtubeExtractor:0.0.7") // Stream Resolver Client-Side
 
     // WorkManager (descargas en segundo plano)
     implementation("androidx.work:work-runtime-ktx:2.9.1")

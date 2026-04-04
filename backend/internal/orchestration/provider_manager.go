@@ -161,29 +161,3 @@ func (pm *ProviderManager) SearchWithMinResults(ctx context.Context, query strin
 	return nil, domain.ErrSongNotFound
 }
 
-// GetStream obtiene el streaming URL aplicando fallback
-func (pm *ProviderManager) GetStream(ctx context.Context, songID string) (*domain.StreamResult, error) {
-	for _, provider := range pm.providers {
-		name := provider.Name()
-		if !pm.canUseProvider(name) {
-			utils.LogInfo("Circuit Breaker activo, saltando provider para stream: " + name)
-			continue
-		}
-
-		timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second) // Strict Timeout para Streams
-
-		utils.LogInfo("Pidiendo stream a: " + name + " para id: " + songID)
-		result, err := provider.GetStream(timeoutCtx, songID)
-		cancel()
-
-		if err == nil && result != nil {
-			pm.recordSuccess(name)
-			return result, nil
-		}
-		
-		utils.LogError("Fallo en provider "+name+" para stream", err)
-		pm.recordFailure(name)
-	}
-	
-	return nil, domain.ErrStreamFailed
-}

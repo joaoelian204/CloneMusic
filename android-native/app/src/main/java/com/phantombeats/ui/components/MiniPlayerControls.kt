@@ -53,6 +53,7 @@ fun MiniPlayerControls(
     isOffline: Boolean,
     isDownloadPending: Boolean,
     isDownloaded: Boolean,
+    streamErrorMessage: String?,
     onTogglePlay: () -> Unit,
     onNext: () -> Unit,
     onToggleFavorite: (Song) -> Unit
@@ -76,6 +77,7 @@ fun MiniPlayerControls(
     )
 
     val statusText = when {
+        !streamErrorMessage.isNullOrBlank() -> streamErrorMessage
         isDownloadPending -> "Descargando..."
         isOffline || isDownloaded -> "Offline"
         else -> display?.subtitle ?: ""
@@ -114,7 +116,7 @@ fun MiniPlayerControls(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = display?.title ?: "Cargando...",
+                text = display?.title ?: if (streamErrorMessage != null) "Error de reproduccion" else "Cargando...",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,

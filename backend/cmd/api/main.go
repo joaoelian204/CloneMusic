@@ -43,7 +43,6 @@ func main() {
 	providerManager := orchestration.NewProviderManager(ytProvider, itunesProvider)
 
 	// Handlers
-	proxyHandler := handlers.NewProxyHandler(providerManager)
 	searchHandler := handlers.NewSearchHandler(providerManager)
 
 	// Endpoints base para diagnostico y compatibilidad con plataformas PaaS
@@ -65,7 +64,6 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 	api.Get("/search", searchHandler.Search)
-	api.Get("/stream/:id", proxyHandler.Stream)
 
 	// Iniciar servidor
 	port := os.Getenv("PORT")
