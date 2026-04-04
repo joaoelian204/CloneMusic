@@ -1,8 +1,6 @@
 package com.phantombeats.data.repository
 
 import com.phantombeats.data.remote.api.PhantomApi
-import com.maxrave.kotlinyoutubeextractor.State
-import com.maxrave.kotlinyoutubeextractor.YTExtractor
 import com.phantombeats.domain.repository.StreamResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
