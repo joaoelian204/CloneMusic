@@ -1,36 +1,27 @@
 package com.phantombeats.data.repository
 
-import android.content.Context
+import com.phantombeats.data.remote.api.PhantomApi
 import com.maxrave.kotlinyoutubeextractor.State
 import com.maxrave.kotlinyoutubeextractor.YTExtractor
 import com.phantombeats.domain.repository.StreamResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import dagger.hilt.android.qualifiers.ApplicationContext
+
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ClientStreamResolver @Inject constructor(
-    @ApplicationContext private val context: Context
+    private val phantomApi: PhantomApi
 ) : StreamResolver {
 
     override suspend fun getStreamUrl(videoId: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val yt = YTExtractor(con = context, CACHING = false, LOGGING = true)
-            yt.extract(videoId)
-            if (yt.state == State.SUCCESS) {
-                // Formato 140 es M4A audio preferido, o 251 para WebM
-                val streamInfo = yt.getYTFiles()?.get(140) ?: yt.getYTFiles()?.get(251)
-                
-                val url = streamInfo?.url
-                if (!url.isNullOrBlank()) {
-                    Result.success(url)
-                } else {
-                    Result.failure(Exception("No compatible audio stream found for video: $videoId"))
-                }
+            val streamUrlDto = phantomApi.getStreamUrl(videoId)
+            if (streamUrlDto.url.isNotBlank()) {
+                Result.success(streamUrlDto.url)
             } else {
-                Result.failure(Exception("Failed to extract youtube stream for video: $videoId"))
+                Result.failure(Exception("Stream URL is empty"))
             }
         } catch (e: Exception) {
             Result.failure(e)

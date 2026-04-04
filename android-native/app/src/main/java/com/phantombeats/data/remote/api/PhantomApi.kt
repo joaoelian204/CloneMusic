@@ -1,7 +1,7 @@
 package com.phantombeats.data.remote.api
 
 import com.phantombeats.data.remote.dto.SongDto
-import com.phantombeats.data.remote.dto.StreamResultDto
+import com.phantombeats.data.remote.dto.StreamUrlDto
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -15,4 +15,7 @@ interface PhantomApi {
         @Query("offset") offset: Int? = null,
         @Query("mode") mode: String? = null
     ): List<SongDto>
+
+    @GET("/api/v1/stream-url/{id}")
+    suspend fun getStreamUrl(@Path("id") id: String): StreamUrlDto
 }

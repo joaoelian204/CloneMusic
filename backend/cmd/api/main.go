@@ -10,6 +10,8 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"phantom-beats-backend/internal/handlers"
+	ytclient "github.com/kkdai/youtube/v2"
+
 	"phantom-beats-backend/internal/orchestration"
 	"phantom-beats-backend/internal/providers/itunes"
 	"phantom-beats-backend/internal/providers/youtube"
@@ -64,6 +66,26 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 	api.Get("/search", searchHandler.Search)
+
+	// Client-Side stream resolver endpoint
+	api.Get("/stream-url/:id", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		client := ytclient.Client{}
+		video, err := client.GetVideo(id)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		}
+		formats := video.Formats.WithAudioChannels()
+		for _, f := range formats {
+			if f.ItagNo == 140 || f.ItagNo == 251 {
+				url, err := client.GetStreamURL(video, &f)
+				if err == nil {
+					return c.JSON(fiber.Map{"url": url})
+				}
+			}
+		}
+		return c.Status(404).JSON(fiber.Map{"error": "No compatible audio stream found"})
+	})
 
 	// Iniciar servidor
 	port := os.Getenv("PORT")

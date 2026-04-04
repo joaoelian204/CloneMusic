@@ -100,7 +100,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3_version")
     implementation("androidx.media3:media3-session:$media3_version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3_version") // Necesario para OkHttp caching
-    implementation("com.github.maxrave-dev:kotlin-youtubeExtractor:0.0.7") // Stream Resolver Client-Side
+     // Stream Resolver Client-Side
 
     // WorkManager (descargas en segundo plano)
     implementation("androidx.work:work-runtime-ktx:2.9.1")
