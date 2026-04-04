@@ -162,7 +162,7 @@ class PhantomPlayerController @Inject constructor(
         _lastErrorMessage.value = null
         currentPlaylist = songs
 
-        val mediaItems = songs.map { song ->
+        val mediaItems = songs.mapNotNull { song ->
             val metadataBuilder = MediaMetadata.Builder()
                 .setTitle(song.title)
                 .setArtist(song.artist)
@@ -171,11 +171,14 @@ class PhantomPlayerController @Inject constructor(
                 metadataBuilder.setArtworkUri(android.net.Uri.parse(song.coverUrl))
             }
             
-            // Usamos phantom-yt (y ExoPlayer lo extrae gracias al MediaModule / ResolvingDataSource)
+            // Determinamos la URI de audio según el origen
             val directUri = if (song.isDownloaded && song.localPath != null) {
                 "file://${song.localPath}"
-            } else {
+            } else if (song.provider == "YouTube") {
                 "phantom-yt:${song.id}"
+            } else {
+                // iTunes y otros usamos búsqueda
+                "phantom-search:${song.title} - ${song.artist}"
             }
 
             MediaItem.Builder()
@@ -185,10 +188,17 @@ class PhantomPlayerController @Inject constructor(
                 .build()
         }
 
+        if (mediaItems.isEmpty()) {
+            _lastErrorMessage.value = "No hay canciones reproducibles en esta selección."
+            return
+        }
+
+        // Ajustamos el startIndex por si se filtraron canciones
+        val adjustedIndex = startIndex.coerceIn(0, mediaItems.lastIndex)
         _currentSong.value = songs.getOrNull(startIndex)
 
         controller.apply {
-            setMediaItems(mediaItems, startIndex, C.TIME_UNSET)
+            setMediaItems(mediaItems, adjustedIndex, C.TIME_UNSET)
             prepare()
             play()
         }

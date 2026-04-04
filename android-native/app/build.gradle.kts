@@ -31,7 +31,7 @@ android {
             buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
             buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
             buildConfigField("String", "LOCAL_DEVICE_BASE_URL", "\"http://127.0.0.1:3000/\"")
-            buildConfigField("Boolean", "USE_REMOTE_BACKEND", "false")
+            buildConfigField("Boolean", "USE_REMOTE_BACKEND", "true")
         }
 
         getByName("release") {
@@ -48,6 +48,7 @@ android {
     }
     
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -100,11 +101,14 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3_version")
     implementation("androidx.media3:media3-session:$media3_version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3_version") // Necesario para OkHttp caching
-     // Stream Resolver Client-Side
 
     // WorkManager (descargas en segundo plano)
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     // SAF DocumentFile (carpetas locales de musica)
     implementation("androidx.documentfile:documentfile:1.0.1")
+
+    // NewPipe Extractor (búsqueda y extracción de YouTube desde el cliente)
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.0.4")
 }

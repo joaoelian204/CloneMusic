@@ -63,6 +63,18 @@ object MediaModule {
                 }
                 if (streamUrl.isNotBlank()) {
                     return@Factory dataSpec.withUri(Uri.parse(streamUrl))
+                } else {
+                    throw java.io.IOException("No se pudo resolver el stream para: $videoId")
+                }
+            } else if (uri.scheme == "phantom-search") {
+                val query = uri.schemeSpecificPart
+                val streamUrl = runBlocking {
+                    streamResolver.resolveBySearch(query).getOrElse { "" }
+                }
+                if (streamUrl.isNotBlank()) {
+                    return@Factory dataSpec.withUri(Uri.parse(streamUrl))
+                } else {
+                    throw java.io.IOException("No se pudo resolver el stream para la búsqueda: $query")
                 }
             }
             dataSpec

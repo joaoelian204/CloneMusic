@@ -5,7 +5,9 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.phantombeats.data.repository.NewPipeDownloader
 import dagger.hilt.android.HiltAndroidApp
+import org.schabi.newpipe.extractor.NewPipe
 
 /**
  * Punto de entrada principal de la aplicación.
@@ -16,6 +18,7 @@ import dagger.hilt.android.HiltAndroidApp
 class PhantomBeatsApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
+        NewPipe.init(NewPipeDownloader())
     }
 
     override fun newImageLoader(): ImageLoader {
