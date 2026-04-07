@@ -50,3 +50,8 @@
 
 # Player
 -keep class androidx.media3.** { *; }
+
+# JSoup / Re2j optional attributes (Used by NewPipeExtractor)
+-dontwarn com.google.re2j.**
+-dontwarn org.jsoup.**
+-dontwarn javax.script.**

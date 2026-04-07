@@ -5,7 +5,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
-import org.schabi.newpipe.extractor.search.SearchEngine
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.StreamExtractor
@@ -23,9 +22,10 @@ class ClientStreamResolver @Inject constructor() : StreamResolver {
             extractor.fetchPage()
 
             val audioStreams: List<AudioStream> = extractor.audioStreams
-            // Prefer formats like M4A or WebM
-            val stream = audioStreams.find { it.format.suffix == "m4a" } 
-                ?: audioStreams.find { it.format.suffix == "webm" }
+            // Priorizamos OPUS/WebM de más alta calidad (~160kbps) vs M4A (~128kbps)
+            val stream = audioStreams.find { it.format?.suffix == "webm" } 
+                ?: audioStreams.find { it.format?.suffix == "m4a" }
+                ?: audioStreams.maxByOrNull { it.averageBitrate } // O cualquier método disponible
                 ?: audioStreams.firstOrNull()
 
             if (stream != null && stream.content.isNotBlank()) {
@@ -52,8 +52,9 @@ class ClientStreamResolver @Inject constructor() : StreamResolver {
                 streamExtractor.fetchPage()
 
                 val audioStreams = streamExtractor.audioStreams
-                val stream = audioStreams.find { it.format.suffix == "m4a" }
-                    ?: audioStreams.find { it.format.suffix == "webm" }
+                val stream = audioStreams.find { it.format?.suffix == "webm" }
+                    ?: audioStreams.find { it.format?.suffix == "m4a" }
+                    ?: audioStreams.maxByOrNull { it.averageBitrate }
                     ?: audioStreams.firstOrNull()
 
                 if (stream != null && stream.content.isNotBlank()) {

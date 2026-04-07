@@ -35,6 +35,7 @@ class PlaylistViewModel @Inject constructor(
     val playlists: StateFlow<List<PlaylistEntity>> = playlistDao.getAllPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val selectedPlaylistSongs: StateFlow<List<Song>> = selectedPlaylistId
         .flatMapLatest { playlistId ->
             if (playlistId.isNullOrBlank()) {
