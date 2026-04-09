@@ -13,6 +13,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.phantombeats.ui.viewmodels.PlayerUiState
 import com.phantombeats.ui.viewmodels.PlayerViewModel
@@ -61,6 +63,17 @@ fun MiniPlayer(
             )
             .clip(RoundedCornerShape(16.dp))
             .clickable { onNavigateToFullPlayer() }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragEnd = { /* Final del gesto */ },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        if (dragAmount.x > 20 || dragAmount.x < -20) {
+                            playerViewModel.stop()
+                        }
+                    }
+                )
+            }
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
     ) {
         MiniPlayerProgress(

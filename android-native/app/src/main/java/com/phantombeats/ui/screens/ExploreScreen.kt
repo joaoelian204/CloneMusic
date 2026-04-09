@@ -48,6 +48,8 @@ import com.phantombeats.ui.viewmodels.SearchViewModel
 @Composable
 fun ExploreScreen(
     playerViewModel: PlayerViewModel,
+    onNavigateToArtist: (com.phantombeats.domain.model.Artist) -> Unit = {},
+    onNavigateToAlbum: (com.phantombeats.domain.model.Album) -> Unit = {},
     searchViewModel: SearchViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
@@ -195,10 +197,48 @@ fun ExploreScreen(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(state.songs, key = { it.id }) { song ->
+                                if (state.artists.isNotEmpty()) {
+                                    item {
+                                        ArtistsRow(
+                                            artists = state.artists,
+                                            onArtistClick = { artist -> 
+                                                onNavigateToArtist(artist)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (state.albums.isNotEmpty()) {
+                                    item {
+                                        AlbumsRow(
+                                            albums = state.albums,
+                                            onAlbumClick = { album -> 
+                                                onNavigateToAlbum(album)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (state.songs.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            text = "Canciones",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                                
+                                items(
+                                    count = state.songs.size,
+                                    key = { index -> state.songs[index].id }
+                                ) { index ->
+                                    val song = state.songs[index]
                                     SongRowCard(
                                         song = song,
-                                        onPlay = { playerViewModel.playSong(song) },
+                                        onPlay = { playerViewModel.playSongsQueue(state.songs, index) },
                                         onToggleFavorite = {
                                             val newFav = !song.isFavorite
                                             searchViewModel.updateFavoriteLocal(song.id, newFav)

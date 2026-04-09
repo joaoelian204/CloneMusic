@@ -9,7 +9,19 @@ data class SongDisplayText(
 
 fun Song.toDisplayText(): SongDisplayText {
     val artistPart = artist.substringBefore("•").trim()
-    val albumPart = artist.substringAfter("•", "").trim().ifBlank { null }
+    var albumPart = artist.substringAfter("•", "").trim().ifBlank { null }
+    
+    // Clean up duration or views from the album part
+    if (albumPart != null) {
+        val parts = albumPart.split("•").map { it.trim() }
+        // Filter out duration (e.g. "3:45") and views (e.g. "1.5M views")
+        val cleanParts = parts.filter { chunk ->
+            !Regex("^(?:\\d+:)?\\d+:\\d+$").matches(chunk) &&
+            !Regex("(?i)^[0-9.,]+[kmblr]?\\s*(vistas|views|reproducciones|meses|years|años)$").matches(chunk)
+        }
+        albumPart = cleanParts.joinToString(" • ").trim().ifBlank { null }
+    }
+    
     val normalizedArtist = artistPart.normalizeForCompare()
 
     val rawTitle = title.trim().trimTitleDelimiters()

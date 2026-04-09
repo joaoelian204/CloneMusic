@@ -3,6 +3,7 @@ package com.phantombeats.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +39,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.phantombeats.R
 import com.phantombeats.domain.model.Song
@@ -146,39 +148,40 @@ fun MixCard(song: Song, onClick: () -> Unit, footer: String = "Play") {
     val display = song.toDisplayText()
     Column(
         modifier = Modifier
-            .width(140.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, PhantomBorderAlpha, RoundedCornerShape(14.dp))
+            .width(135.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+            .border(1.dp, PhantomBorderAlpha, RoundedCornerShape(12.dp))        
             .clickable(onClick = onClick)
-            .padding(10.dp)
     ) {
         AsyncImage(
             model = song.coverUrl.takeIf { it.isNotBlank() },
             contentDescription = song.title,
-            placeholder = painterResource(R.drawable.cover_placeholder),
+            placeholder = painterResource(R.drawable.cover_placeholder),        
             error = painterResource(R.drawable.cover_placeholder),
             fallback = painterResource(R.drawable.cover_placeholder),
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(92.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .aspectRatio(1f)
                 .background(PhantomDarkGray)
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = display.title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = footer,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
+        Column(modifier = Modifier.padding(10.dp)) {
+            Text(
+                text = display.title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val subText = if (footer == "Play") display.subtitle else footer
+            Text(
+                text = subText,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

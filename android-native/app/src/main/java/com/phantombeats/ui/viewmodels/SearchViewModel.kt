@@ -3,8 +3,13 @@ package com.phantombeats.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.phantombeats.domain.model.Song
+import com.phantombeats.domain.model.Artist
+import com.phantombeats.domain.model.Album
 import com.phantombeats.domain.repository.SongRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +21,8 @@ sealed class SearchUiState {
     object Loading : SearchUiState()
     data class Success(
         val songs: List<Song>,
+        val artists: List<Artist> = emptyList(),
+        val albums: List<Album> = emptyList(),
         val query: String,
         val mode: String,
         val hasMore: Boolean,
@@ -46,22 +53,32 @@ class SearchViewModel @Inject constructor(
         _uiState.value = SearchUiState.Loading
 
         viewModelScope.launch {
-            val result = songRepository.searchSongsPaged(
-                query = query,
-                limit = PAGE_SIZE,
-                offset = 0,
-                mode = mode
-            )
-            result.onSuccess { songs ->
-                _uiState.value = SearchUiState.Success(
-                    songs = songs,
-                    query = query,
-                    mode = mode,
-                    hasMore = songs.size >= PAGE_SIZE,
-                    isLoadingMore = false
-                )
-            }.onFailure { error ->
-                _uiState.value = SearchUiState.Error(error.localizedMessage ?: "Error desconocido")
+            try {
+                coroutineScope {
+                    val songsDeferred = async { songRepository.searchSongsPaged(query, PAGE_SIZE, 0, mode) }
+                    val artistsDeferred = async { songRepository.searchArtists(query, 5) }
+                    val albumsDeferred = async { songRepository.searchAlbums(query, 5) }
+
+                    val songsResult = songsDeferred.await()
+                    val artistsResult = artistsDeferred.await()
+                    val albumsResult = albumsDeferred.await()
+
+                    songsResult.onSuccess { songs ->
+                        _uiState.value = SearchUiState.Success(
+                            songs = songs,
+                            artists = artistsResult.getOrDefault(emptyList()),
+                            albums = albumsResult.getOrDefault(emptyList()),
+                            query = query,
+                            mode = mode,
+                            hasMore = songs.size >= PAGE_SIZE,
+                            isLoadingMore = false
+                        )
+                    }.onFailure { error ->
+                        _uiState.value = SearchUiState.Error(error.localizedMessage ?: "Error desconocido")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.value = SearchUiState.Error(e.localizedMessage ?: "Error desconocido")
             }
         }
     }

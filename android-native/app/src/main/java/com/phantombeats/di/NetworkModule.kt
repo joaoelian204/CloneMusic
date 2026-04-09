@@ -1,7 +1,8 @@
 package com.phantombeats.di
 
 import com.phantombeats.BuildConfig
-import com.phantombeats.data.remote.api.PhantomApi
+import com.phantombeats.data.remote.api.InnerTubeApi
+import com.phantombeats.data.remote.api.ItunesApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -59,7 +60,24 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun providePhantomApi(retrofit: Retrofit): PhantomApi {
-        return retrofit.create(PhantomApi::class.java)
+    fun provideInnerTubeRetrofit(okHttpClient: OkHttpClient): InnerTubeApi {
+        return Retrofit.Builder()
+            .baseUrl("https://music.youtube.com/")
+            .client(okHttpClient)
+            // Retornamos raw JsonObject con Gson
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(InnerTubeApi::class.java)
     }
-}
+
+    @Provides
+    @Singleton
+    fun provideItunesApi(okHttpClient: OkHttpClient): ItunesApi {
+        return Retrofit.Builder()
+            .baseUrl("https://itunes.apple.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ItunesApi::class.java)
+    }
+} 

@@ -1,6 +1,8 @@
 package com.phantombeats.domain.repository
 
 import com.phantombeats.domain.model.Song
+import com.phantombeats.domain.model.Artist
+import com.phantombeats.domain.model.Album
 import kotlinx.coroutines.flow.Flow
 
 interface SongRepository {
@@ -11,6 +13,10 @@ interface SongRepository {
      * 2. Si falla la API, busca en la caché (Room) vía término (LIKE).
      */
     suspend fun searchSongs(query: String, mode: String = "balanced"): Result<List<Song>>
+
+    suspend fun searchArtists(query: String, limit: Int = 5): Result<List<Artist>>
+    
+    suspend fun searchAlbums(query: String, limit: Int = 5): Result<List<Album>>
 
     /**
      * Variante paginada para explorar catálogos largos sin cargar todo de una sola vez.

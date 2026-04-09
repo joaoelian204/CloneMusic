@@ -3,6 +3,7 @@ package com.phantombeats.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -99,7 +100,7 @@ private fun GridSongCard(song: Song, onPlay: () -> Unit, onToggleFavorite: () ->
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(110.dp)
+                .aspectRatio(1f)
                 .clip(RoundedCornerShape(10.dp))
                 .background(PhantomDarkGray)
         )

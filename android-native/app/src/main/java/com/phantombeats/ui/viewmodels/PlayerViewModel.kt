@@ -54,6 +54,11 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun stop() {
+        togglePlayPause()
+        _uiState.value = PlayerUiState.Idle
+    }
+
     fun playSong(song: Song) {
         playSongsQueue(listOf(song), 0)
     }

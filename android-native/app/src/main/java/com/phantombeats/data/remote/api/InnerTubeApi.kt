@@ -16,12 +16,13 @@ interface InnerTubeApi {
     suspend fun search(
         @Url url: String = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false",
         @Body request: InnerTubeSearchRequest
-    ): Response<String>
+    ): Response<com.google.gson.JsonObject>
 }
 
 data class InnerTubeSearchRequest(
     val context: InnerTubeContext = InnerTubeContext(),
-    val query: String
+    val query: String,
+    val params: String = "EgWKAQIIAWoMEAMQBBAJEA4QChAF" // Filtra estrictamente por canciones (Song) oficial en YTM
 )
 
 data class InnerTubeContext(

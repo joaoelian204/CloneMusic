@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -141,7 +142,7 @@ fun PlaylistsScreen(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .height(82.dp)
-                            .fillMaxWidth(0.26f)
+                            .aspectRatio(1f)
                             .clip(RoundedCornerShape(12.dp))
                     )
 

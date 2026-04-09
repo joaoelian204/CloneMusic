@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,7 +25,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.phantombeats.R
@@ -61,7 +64,7 @@ fun FullPlayerArtwork(song: Song?) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(320.dp)
+            .aspectRatio(1f) // Convertimos el espacio en un cuadrado exacto para que la portada HD no se corte
             .clip(RoundedCornerShape(22.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, PhantomBorderAlpha, RoundedCornerShape(22.dp)),
@@ -83,6 +86,7 @@ fun FullPlayerArtwork(song: Song?) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FullPlayerTrackInfo(song: Song?) {
     val display = song?.toDisplayText()
@@ -90,12 +94,14 @@ fun FullPlayerTrackInfo(song: Song?) {
         text = display?.title ?: "Selecciona una cancion",
         style = MaterialTheme.typography.headlineSmall,
         color = MaterialTheme.colorScheme.onBackground,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis
+        maxLines = 1,
+        modifier = Modifier.basicMarquee()
     )
     Text(
         text = display?.subtitle ?: "",
         style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f)
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+        maxLines = 1,
+        modifier = Modifier.basicMarquee()
     )
 }

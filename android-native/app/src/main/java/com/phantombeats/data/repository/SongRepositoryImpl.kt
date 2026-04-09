@@ -6,14 +6,16 @@ import com.phantombeats.data.local.dao.FavoriteDao
 import com.phantombeats.data.download.SongDownloadWorker
 import com.phantombeats.data.local.entity.FavoriteEntity
 import com.phantombeats.data.local.entity.SearchHistoryEntity
+import com.phantombeats.data.local.entity.SongEntity
 import com.phantombeats.data.mapper.toDomain
-import com.phantombeats.data.remote.api.PhantomApi
 import com.phantombeats.domain.model.Song
 import com.phantombeats.domain.repository.SongRepository
 import com.phantombeats.domain.repository.StreamResolver
 import java.io.IOException
 import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
@@ -29,7 +31,8 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class SongRepositoryImpl @Inject constructor(
-    private val api: PhantomApi,
+    private val innerTubeRepository: InnerTubeRepositoryImpl,
+    private val itunesApi: com.phantombeats.data.remote.api.ItunesApi,
     private val songDao: SongDao,
     private val favoriteDao: FavoriteDao,
     private val searchHistoryDao: SearchHistoryDao,
@@ -65,6 +68,54 @@ class SongRepositoryImpl @Inject constructor(
         return searchSongsPaged(query, DEFAULT_SEARCH_PAGE_SIZE, 0, mode)
     }
 
+    override suspend fun searchArtists(query: String, limit: Int): Result<List<com.phantombeats.domain.model.Artist>> {
+        return try {
+            // Using 'song' entity is a trick to get artworkUrl100 which represents the artist's top album/song cover
+            val response = itunesApi.searchSongs(term = query, limit = limit * 2, entity = "song")
+            
+            val artists = mutableListOf<com.phantombeats.domain.model.Artist>()
+            val seenArtistIds = mutableSetOf<Long>()
+            
+            for (track in response.results) {
+                if (track.artistId != null && !seenArtistIds.contains(track.artistId)) {
+                    val artwork = track.artworkUrl100?.replace("100x100bb", "600x600bb") ?: ""
+                    artists.add(
+                        com.phantombeats.domain.model.Artist(
+                            id = track.artistId.toString(),
+                            name = track.artistName ?: "Unknown Artist",
+                            imageUrl = artwork
+                        )
+                    )
+                    seenArtistIds.add(track.artistId)
+                    if (artists.size >= limit) break
+                }
+            }
+            Result.success(artists)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun searchAlbums(query: String, limit: Int): Result<List<com.phantombeats.domain.model.Album>> {
+        return try {
+            val response = itunesApi.searchAlbums(term = query, limit = limit)
+            val albums = response.results.map { track ->
+                val artwork = track.artworkUrl100?.replace("100x100bb", "600x600bb") ?: ""
+                com.phantombeats.domain.model.Album(
+                    id = track.collectionId?.toString() ?: "",
+                    title = track.collectionName ?: "Unknown Album",
+                    artistName = track.artistName ?: "Unknown Artist",
+                    artistId = track.artistId?.toString() ?: "",
+                    coverUrl = artwork,
+                    releaseYear = track.releaseDate?.take(4) ?: ""
+                )
+            }.filter { it.id.isNotEmpty() }
+            Result.success(albums)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun searchSongsPaged(query: String, limit: Int, offset: Int, mode: String): Result<List<Song>> {
         return try {
             // Guardamos la query en el historial antes que todo
@@ -72,14 +123,24 @@ class SongRepositoryImpl @Inject constructor(
                 searchHistoryDao.insertSearchQuery(SearchHistoryEntity(query = query))
             }
 
-            // 1. Intentamos obtener de la red (Proxy en Go)
-            val remoteSongs = api.searchSongs(query, limit = limit, offset = offset, mode = mode)
+            // 1. Reemplazamos Proxy de GO por Scraper Nativo de YouTube Music (InnerTube API)
+            val resultInnerTube = innerTubeRepository.searchTrack(query)
             
-            // 2. Persistir localmente en Room (Como caché inicial)
-            // Aquí ignoramos si choca con canciones descargadas localmente (ON CONFLICT REPLACE)
-            val entities = remoteSongs.map { dto ->
-                val existing = songDao.getSongById(dto.id)
-                dto.toEntity().copy(
+            if (resultInnerTube.isFailure) {
+                return Result.failure(Exception("Error extrayendo datos de YouTube Music"))
+            }
+            val domainSongs = resultInnerTube.getOrNull() ?: emptyList()
+
+            // Transición a Entity local
+            val entities = domainSongs.map { domainSong ->
+                val existing = songDao.getSongById(domainSong.id)
+                SongEntity(
+                    id = domainSong.id,
+                    title = domainSong.title,
+                    artist = domainSong.artist,
+                    duration = domainSong.duration,
+                    coverUrl = domainSong.coverUrl,
+                    provider = domainSong.provider,
                     localPath = existing?.localPath,
                     playCount = existing?.playCount ?: 0,
                     skipCount = existing?.skipCount ?: 0,
@@ -90,8 +151,8 @@ class SongRepositoryImpl @Inject constructor(
             }
             songDao.insertSongs(entities)
 
-            // Retornamos mapeado al Domain
-            Result.success(entities.map { it.toDomain() })
+            // Retornamos mapeado al Domain desde las Entities (o directamente domainSongs)
+            Result.success(domainSongs)
 
         } catch (e: Exception) {
             // 3. ✨ OFFLINE-FIRST / FALBACK: Si hay un error de red (Ej. modo avión)
@@ -173,20 +234,21 @@ class SongRepositoryImpl @Inject constructor(
                 return Result.success(Unit)
             }
 
-            val streamResult = withTimeout(STREAM_TIMEOUT_MS) {
-                streamResolver.getStreamUrl(song.id)
-            }
-            
-            val streamUrl = streamResult.getOrThrow()
-            
+            // Enqueuemos el Worker usando solo el ID de la canción para evitar
+            // bloquear el hilo actual o tener URLs expiradas en el worker.
             songDao.updateLocalPath(song.id, PENDING_DOWNLOAD_PATH)
+            
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+
             val request = OneTimeWorkRequestBuilder<SongDownloadWorker>()
                 .setInputData(
                     workDataOf(
-                        SongDownloadWorker.KEY_SONG_ID to song.id,
-                        SongDownloadWorker.KEY_STREAM_URL to streamUrl
+                        SongDownloadWorker.KEY_SONG_ID to song.id
                     )
                 )
+                .setConstraints(constraints)
                 .setBackoffCriteria(
                     BackoffPolicy.EXPONENTIAL,
                     15,

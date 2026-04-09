@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -126,8 +128,8 @@ fun HomeScreen(
                 subtitle = if (isOnline) "Toques rapidos para arrancar" else "Descargadas y locales disponibles"
             )
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(mixSongs, key = { it.id }) { song ->
-                    MixCard(song = song, onClick = { playerViewModel.playSong(song) }, footer = "Play")
+                itemsIndexed(mixSongs, key = { _, s -> s.id }) { index, song ->
+                    MixCard(song = song, onClick = { playerViewModel.playSongsQueue(mixSongs, index) }, footer = "Play")
                 }
             }
 
@@ -143,15 +145,15 @@ fun HomeScreen(
             )
 
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns = GridCells.Adaptive(minSize = 80.dp),
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                itemsIndexed(recommendedSongs, key = { index, song -> "${song.id}-$index" }) { _, song ->
+                itemsIndexed(recommendedSongs, key = { index, song -> "${song.id}-$index" }) { index, song ->
                     HomeRecommendationCard(
                         song = song,
-                        onPlay = { playerViewModel.playSong(song) },
+                        onPlay = { playerViewModel.playSongsQueue(recommendedSongs, index) },
                         onToggleFavorite = { playerViewModel.setFavorite(song, !song.isFavorite) },
                         onAddToPlaylist = { selectedSongForPlaylist = song }
                     )
@@ -232,11 +234,10 @@ private fun HomeRecommendationCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
             .clickable(onClick = onPlay)
-            .padding(10.dp)
     ) {
         AsyncImage(
             model = song.coverUrl.takeIf { it.isNotBlank() },
@@ -247,51 +248,56 @@ private fun HomeRecommendationCard(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(104.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .aspectRatio(1f)
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = display.title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = display.subtitle,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPlay, modifier = Modifier.size(34.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)) {
+            Text(
+                text = display.title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = display.subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onPlay, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    IconButton(onClick = onAddToPlaylist, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.PlaylistAdd,
+                            contentDescription = "Lista",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(32.dp)) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play",
-                        tint = MaterialTheme.colorScheme.primary
+                        imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorito",
+                        tint = if (song.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                IconButton(onClick = onAddToPlaylist, modifier = Modifier.size(34.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.PlaylistAdd,
-                        contentDescription = "Lista",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(34.dp)) {
-                Icon(
-                    imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Favorito",
-                    tint = if (song.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
-                )
             }
         }
     }

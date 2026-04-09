@@ -48,10 +48,14 @@ fun OfflineScreen(
             item {
                 SectionHeader(title = "Offline", subtitle = "${songs.size} canciones descargadas")
             }
-            items(songs, key = { it.id }) { song ->
+            items(
+                count = songs.size,
+                key = { index -> songs[index].id }
+            ) { index ->
+                val song = songs[index]
                 SongRowCard(
                     song = song,
-                    onPlay = { playerViewModel.playSong(song) },
+                    onPlay = { playerViewModel.playSongsQueue(songs, index) },
                     onToggleFavorite = { playerViewModel.setFavorite(song, !song.isFavorite) },
                     trailingLabel = "Lista",
                     onTrailingClick = { selectedSongForPlaylist = song }
