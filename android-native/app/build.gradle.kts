@@ -28,10 +28,6 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             manifestPlaceholders["appLabel"] = "PhantomBeats Pruebas"
-            buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
-            buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
-            buildConfigField("String", "LOCAL_DEVICE_BASE_URL", "\"http://127.0.0.1:3000/\"")
-            buildConfigField("Boolean", "USE_REMOTE_BACKEND", "true")
         }
 
         getByName("release") {
@@ -40,10 +36,6 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
-            buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
-            buildConfigField("String", "LOCAL_DEVICE_BASE_URL", "\"http://127.0.0.1:3000/\"")
-            buildConfigField("Boolean", "USE_REMOTE_BACKEND", "true")
         }
     }
     
@@ -93,10 +85,6 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     kapt("androidx.room:room-compiler:$room_version")
-
-    // Retrofit & GSON (Network API)
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
     // Media3 - ExoPlayer
     val media3_version = "1.2.0"

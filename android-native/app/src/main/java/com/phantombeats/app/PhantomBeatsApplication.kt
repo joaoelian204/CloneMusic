@@ -42,7 +42,7 @@ class PhantomBeatsApplication : Application(), ImageLoaderFactory, Configuration
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizePercent(0.02)
+                    .maxSizePercent(0.04) // Ampliado al 4% del disco por Offline-First 
                     .build()
             }
             .crossfade(true)

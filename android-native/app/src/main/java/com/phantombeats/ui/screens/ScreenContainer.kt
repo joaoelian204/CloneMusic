@@ -44,9 +44,9 @@ fun GradientContainer(
 }
 
 @Composable
-fun SectionHeader(title: String, subtitle: String) {
+fun SectionHeader(title: String, subtitle: String, modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier.padding(vertical = 8.dp),
+        modifier = modifier.padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row {

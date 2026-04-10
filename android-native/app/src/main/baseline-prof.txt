@@ -1,0 +1,32 @@
+# PhantomBeats - Perfil de Rendimiento Extremo AOT
+
+# 1. Clases Core (Arranque en frío de la aplicación)
+HSPLcom/phantombeats/app/PhantomBeatsApplication;-><init>()V
+HSPLcom/phantombeats/player/PhantomMediaService;-><init>()V
+HSPLcom/phantombeats/MainActivity;-><init>()V
+HSPLcom/phantombeats/player/PhantomPlayerController;-><init>(Landroid/content/Context;)V
+HSPLcom/phantombeats/data/repository/StreamOrchestrator;-><init>(Lcom/phantombeats/domain/repository/StreamCacheRepository;Ljava/util/Set;)V
+
+# 2. Jetpack Compose UI (Evita el "Lag" en el primer scroll)
+Landroidx/compose/**;
+Landroidx/compose/runtime/**;
+Landroidx/compose/ui/**;
+Landroidx/compose/foundation/**;
+Landroidx/compose/material3/**;
+
+# 3. Media3 ExoPlayer (Play instántaneo)
+Landroidx/media3/**;
+HSPLandroidx/media3/exoplayer/ExoPlayer;-><init>()V
+
+# 4. Room y Coroutines (Velocidad extrema en la Búsqueda FTS offline)
+Landroidx/room/**;
+Landroidx/sqlite/**;
+Lkotlinx/coroutines/**;
+
+# 5. Coil (Carga de portadas de discos almacenadas en caché)
+Lcoil/**;
+Lcoil/disk/DiskCache/**;
+
+# 6. Dagger / Hilt (Reducción de latencia por inyección)
+Ldagger/hilt/**;
+Ldagger/internal/**;

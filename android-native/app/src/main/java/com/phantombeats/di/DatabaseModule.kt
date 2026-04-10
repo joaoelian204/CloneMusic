@@ -24,7 +24,7 @@ object DatabaseModule {
     }
 
     @Provides
-    fun provideSongDao(database: AppDatabase): SongDao = database.songDao()
+    fun provideSongDao(database: AppDatabase): SongDao = database.songDao()     
 
     @Provides
     fun provideFavoriteDao(database: AppDatabase): FavoriteDao = database.favoriteDao()
@@ -34,4 +34,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSearchHistoryDao(database: AppDatabase): SearchHistoryDao = database.searchHistoryDao()
+
+    @Provides
+    fun provideSearchDao(database: com.phantombeats.data.local.PhantomDatabase): com.phantombeats.data.local.dao.SearchDao = database.searchDao()
 }

@@ -148,9 +148,9 @@ fun MixCard(song: Song, onClick: () -> Unit, footer: String = "Play") {
     val display = song.toDisplayText()
     Column(
         modifier = Modifier
-            .width(135.dp)
+            .width(115.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))   
             .border(1.dp, PhantomBorderAlpha, RoundedCornerShape(12.dp))        
             .clickable(onClick = onClick)
     ) {
@@ -169,15 +169,15 @@ fun MixCard(song: Song, onClick: () -> Unit, footer: String = "Play") {
         Column(modifier = Modifier.padding(10.dp)) {
             Text(
                 text = display.title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            val subText = if (footer == "Play") display.subtitle else footer
+            val subText = if (footer == "Play") display.subtitle else footer    
             Text(
                 text = subText,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

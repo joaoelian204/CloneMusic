@@ -123,6 +123,12 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HomeStatChip(icon = Icons.Default.Favorite, value = "$favoriteCount favoritas")
+                HomeStatChip(icon = Icons.Default.OfflinePin, value = "$offlineCount offline")
+                HomeStatChip(icon = Icons.Default.Folder, value = "$localCount local")
+            }
+
             SectionHeader(
                 title = if (isOnline) "Mix del dia" else "Mix offline",
                 subtitle = if (isOnline) "Toques rapidos para arrancar" else "Descargadas y locales disponibles"
@@ -133,22 +139,18 @@ fun HomeScreen(
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HomeStatChip(icon = Icons.Default.Favorite, value = "$favoriteCount favoritas")
-                HomeStatChip(icon = Icons.Default.OfflinePin, value = "$offlineCount offline")
-                HomeStatChip(icon = Icons.Default.Folder, value = "$localCount local")
-            }
-
             SectionHeader(
                 title = "Recomendados",
-                subtitle = if (isOnline) "En tarjetas estilo Spotify" else "Basado en tu biblioteca sin internet"
+                subtitle = if (isOnline) "En tarjetas estilo Spotify" else "Basado en tu biblioteca sin internet",
+                modifier = Modifier.padding(top = 8.dp)
             )
 
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 80.dp),
+                columns = GridCells.Fixed(3),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 140.dp),
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 itemsIndexed(recommendedSongs, key = { index, song -> "${song.id}-$index" }) { index, song ->
                     HomeRecommendationCard(

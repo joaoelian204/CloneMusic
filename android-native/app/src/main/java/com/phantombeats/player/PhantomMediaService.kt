@@ -3,48 +3,51 @@ package com.phantombeats.player
 import android.content.Intent
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import androidx.media3.session.MediaLibraryService
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 /**
  * Servicio en Foreground que mantiene a ExoPlayer con vida 
- * incluso cuando la app está minimizada o la pantalla apagada.
- * Utiliza Media3 (la API moderna que reemplazó a MediaBrowserServiceCompat).
+ * y lo hace DISPONIBLE (Visible) nativamente para Android Auto,
+ * WearOS, auriculares Bluetooth y Pantalla de Bloqueo.
  */
 @AndroidEntryPoint
-class PhantomMediaService : MediaSessionService() {
+class PhantomMediaService : MediaLibraryService() {
 
     @Inject
     lateinit var player: ExoPlayer
 
-    private var mediaSession: MediaSession? = null
+    private var mediaLibrarySession: MediaLibrarySession? = null
 
     override fun onCreate() {
         super.onCreate()
         
-        // 3. Crear la Sesión Media vinculada al Player inyectado
-        mediaSession = MediaSession.Builder(this, player).build()
+        // 3. Crear Session Library vinculada (Abre pasarela para coches y BT)
+        mediaLibrarySession = MediaLibrarySession.Builder(this, player, CustomMediaLibrarySessionCallback()).build()
     }
 
-    // Android llamará a esto para que los clientes (MediaController) se conecten
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
+    // Callback para interconectar con Android Auto y WearOS (Devuelve raíces de música) 
+    private inner class CustomMediaLibrarySessionCallback : MediaLibrarySession.Callback {
+        // Todo: Implementaciones de .onGetLibraryRoot(), .onGetChildren()
     }
 
-    // Limpieza crítica para no dejar Memory Leaks cuando el SO destruya el servicio
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
+        return mediaLibrarySession
+    }
+
     override fun onDestroy() {
-        mediaSession?.run {
+        mediaLibrarySession?.run {
             player.release()
             release()
         }
-        mediaSession = null
+        mediaLibrarySession = null
         super.onDestroy()
     }
 
     // Previene reinicios indeseados del servicio (Típico en reproductores musicales)
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val player = mediaSession?.player
+        val player = mediaLibrarySession?.player
         if (player != null && !player.playWhenReady) {
             stopSelf()
         }

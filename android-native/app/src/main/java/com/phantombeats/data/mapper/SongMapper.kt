@@ -16,3 +16,18 @@ fun SongEntity.toDomain(): Song {
         isFavorite = this.isFavorite
     )
 }
+
+fun Song.toEntity(): SongEntity {
+    return SongEntity(
+        id = this.id,
+        title = this.title,
+        artist = this.artist,
+        duration = this.duration,
+        coverUrl = this.coverUrl,
+        provider = this.provider,
+        localPath = this.localPath,
+        playCount = this.playCount,
+        lastPlayed = System.currentTimeMillis(),
+        isFavorite = this.isFavorite
+    )
+}

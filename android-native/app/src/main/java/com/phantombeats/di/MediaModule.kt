@@ -31,15 +31,7 @@ object MediaModule {
 
     @Provides
     @Singleton
-    fun provideSimpleCache(@ApplicationContext context: Context): SimpleCache {
-        val cacheDir = File(context.cacheDir, "media_cache")
-        val evictor = LeastRecentlyUsedCacheEvictor(200 * 1024 * 1024) // 200MB limit
-        val databaseProvider = StandaloneDatabaseProvider(context)
-        return SimpleCache(cacheDir, evictor, databaseProvider)
-    }
 
-    @Provides
-    @Singleton
     fun provideDataSourceFactory(
         @ApplicationContext context: Context,
         cache: SimpleCache,
