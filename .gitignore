@@ -4,6 +4,7 @@
 mobile-app/
 mobil_app/
 node_modules/
+ai-mapper
 # Documentacion interna/no publica
 docs/
 docs/**
