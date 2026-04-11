@@ -49,6 +49,12 @@ class SearchViewModel @Inject constructor(
             _uiState.value = SearchUiState.Idle
             return
         }
+        
+        // Evitar recarga si ya tenemos la misma búsqueda cargada exitosamente
+        val current = _uiState.value
+        if (current is SearchUiState.Success && current.query == query && current.mode == mode) {
+            return
+        }
 
         _uiState.value = SearchUiState.Loading
 

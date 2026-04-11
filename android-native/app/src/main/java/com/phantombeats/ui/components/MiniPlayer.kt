@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.phantombeats.ui.viewmodels.PlayerUiState
@@ -64,11 +65,11 @@ fun MiniPlayer(
             .clip(RoundedCornerShape(16.dp))
             .clickable { onNavigateToFullPlayer() }
             .pointerInput(Unit) {
-                detectDragGestures(
+                detectHorizontalDragGestures(
                     onDragEnd = { /* Final del gesto */ },
-                    onDrag = { change, dragAmount ->
+                    onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        if (dragAmount.x > 20 || dragAmount.x < -20) {
+                        if (dragAmount > 15f || dragAmount < -15f) {
                             playerViewModel.stop()
                         }
                     }

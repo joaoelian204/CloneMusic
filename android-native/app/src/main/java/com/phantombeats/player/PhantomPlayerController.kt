@@ -173,7 +173,11 @@ class PhantomPlayerController @Inject constructor(
             
             // Determinamos la URI de audio según el origen
             val directUri = if (song.isDownloaded && song.localPath != null) {
-                "file://${song.localPath}"
+                if (song.localPath.startsWith("content://") || song.localPath.startsWith("file://")) {
+                    song.localPath
+                } else {
+                    "file://${song.localPath}"
+                }
             } else if (song.provider == "YouTube") {
                 "phantom-yt:${song.id}"
             } else {
@@ -218,6 +222,16 @@ class PhantomPlayerController @Inject constructor(
         mediaController?.shuffleModeEnabled = enabled
     }
 
+    fun stopPlayback() {
+        mediaController?.let {
+            if (it.isPlaying) {
+                it.pause()
+            }
+            it.stop()
+            it.clearMediaItems()
+        }
+    }
+
     fun togglePlayPause() {
         if (mediaController?.isPlaying == true) {
             mediaController?.pause()
@@ -229,6 +243,13 @@ class PhantomPlayerController @Inject constructor(
     fun seekTo(positionMs: Long) {
         mediaController?.seekTo(positionMs)
         _positionMs.value = positionMs.coerceAtLeast(0L)
+    }
+
+    fun updateCurrentSong(updatedSong: Song) {
+        val current = _currentSong.value
+        if (current?.id == updatedSong.id) {
+            _currentSong.value = updatedSong
+        }
     }
 
     fun destroy() {

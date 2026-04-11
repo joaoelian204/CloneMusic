@@ -55,3 +55,9 @@
 -dontwarn com.google.re2j.**
 -dontwarn org.jsoup.**
 -dontwarn javax.script.**
+  
+# Hilt / Dagger  
+-keep class dagger.hilt.** { *; }  
+-dontwarn dagger.hilt.**  
+-keep class **.Hilt_* { *; }  
+-dontwarn **.Hilt_* 

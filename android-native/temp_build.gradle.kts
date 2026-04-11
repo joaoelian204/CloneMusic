@@ -17,11 +17,6 @@ android {
         versionName = "1.0"
         manifestPlaceholders["appLabel"] = "PhantomBeats"
 
-        buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
-        buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
-        buildConfigField("String", "LOCAL_DEVICE_BASE_URL", "\"http://127.0.0.1:3000/\"")
-        buildConfigField("Boolean", "USE_REMOTE_BACKEND", "true")
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -33,6 +28,10 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             manifestPlaceholders["appLabel"] = "PhantomBeats Pruebas"
+            buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
+            buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
+            buildConfigField("String", "LOCAL_DEVICE_BASE_URL", "\"http://127.0.0.1:3000/\"")
+            buildConfigField("Boolean", "USE_REMOTE_BACKEND", "true")
         }
 
         getByName("release") {
@@ -41,6 +40,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            buildConfigField("String", "REMOTE_BASE_URL", "\"https://clone-music-backend.onrender.com/\"")
+            buildConfigField("String", "LOCAL_EMULATOR_BASE_URL", "\"http://10.0.2.2:3000/\"")
+            buildConfigField("String", "LOCAL_DEVICE_BASE_URL", "\"http://127.0.0.1:3000/\"")
+            buildConfigField("Boolean", "USE_REMOTE_BACKEND", "true")
         }
     }
     
@@ -91,6 +94,10 @@ dependencies {
     implementation("androidx.room:room-ktx:$room_version")
     kapt("androidx.room:room-compiler:$room_version")
 
+    // Retrofit & GSON (Network API)
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+
     // Media3 - ExoPlayer
     val media3_version = "1.2.0"
     implementation("androidx.media3:media3-exoplayer:$media3_version")
@@ -102,12 +109,6 @@ dependencies {
 
     // SAF DocumentFile (carpetas locales de musica)
     implementation("androidx.documentfile:documentfile:1.0.1")
-
-    // Retrofit & OkHttp (Network API)
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-scalars:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.google.code.gson:gson:2.10.1")
 
     // NewPipe Extractor (búsqueda y extracción de YouTube desde el cliente)
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.0")

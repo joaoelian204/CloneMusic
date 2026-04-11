@@ -55,7 +55,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun stop() {
-        togglePlayPause()
+        playerController.stopPlayback()
         _uiState.value = PlayerUiState.Idle
     }
 
@@ -115,7 +115,9 @@ class PlayerViewModel @Inject constructor(
 
             val current = _uiState.value
             if (current is PlayerUiState.Playing && current.song.id == songId) {
-                _uiState.value = current.copy(song = current.song.copy(isFavorite = isFavorite))
+                val updated = current.song.copy(isFavorite = isFavorite)
+                _uiState.value = current.copy(song = updated)
+                playerController.updateCurrentSong(updated)
             }
         }
     }
@@ -129,7 +131,9 @@ class PlayerViewModel @Inject constructor(
 
             val current = _uiState.value
             if (current is PlayerUiState.Playing && current.song.id == song.id) {
-                _uiState.value = current.copy(song = current.song.copy(isFavorite = isFavorite))
+                val updated = current.song.copy(isFavorite = isFavorite)
+                _uiState.value = current.copy(song = updated)
+                playerController.updateCurrentSong(updated)
             }
         }
     }
