@@ -28,10 +28,13 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -366,6 +369,9 @@ private fun PlaylistActionsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(30.dp),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        tonalElevation = 10.dp,
         title = {
             Text(
                 text = playlistName,
@@ -382,7 +388,7 @@ private fun PlaylistActionsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.24f))
                         .border(1.dp, PhantomBorderAlpha, RoundedCornerShape(12.dp))
                 ) {
                     Icon(
@@ -399,7 +405,7 @@ private fun PlaylistActionsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.14f))
                         .border(
                             1.dp,
                             MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
@@ -418,7 +424,9 @@ private fun PlaylistActionsDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cerrar") }
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar", color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f))
+            }
         }
     )
 }
@@ -432,18 +440,50 @@ private fun RenamePlaylistDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Editar playlist") },
-        text = {
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = true,
-                placeholder = { Text("Nuevo nombre") },
-                modifier = Modifier.fillMaxWidth()
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        tonalElevation = 10.dp,
+        title = {
+            Text(
+                text = "Editar playlist",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
             )
         },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    placeholder = { Text("Nuevo nombre") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.24f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                    )
+                )
+                Text(
+                    text = "Puedes renombrarla cuando quieras.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+        },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Guardar") }
+            Button(
+                onClick = onConfirm,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("Guardar")
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancelar") }
@@ -459,7 +499,16 @@ private fun ConfirmDeletePlaylistDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Eliminar playlist") },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        tonalElevation = 10.dp,
+        title = {
+            Text(
+                text = "Eliminar playlist",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             Text(
                 text = "Se eliminara \"$playlistName\". Esta accion no se puede deshacer.",
@@ -467,8 +516,15 @@ private fun ConfirmDeletePlaylistDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Eliminar", color = MaterialTheme.colorScheme.error)
+            Button(
+                onClick = onConfirm,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.18f),
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Eliminar")
             }
         },
         dismissButton = {
