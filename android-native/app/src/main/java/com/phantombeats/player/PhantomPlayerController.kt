@@ -34,8 +34,13 @@ class PhantomPlayerController @Inject constructor(
     private val context: Context
 ) {
 
+    data class ResolvedQueueItem(
+        val song: Song,
+        val streamUri: String
+    )
+
     private data class PendingPlayback(
-        val songs: List<Song>,
+        val queueItems: List<ResolvedQueueItem>,
         val startIndex: Int
     )
 
@@ -45,6 +50,10 @@ class PhantomPlayerController @Inject constructor(
     private var mediaController: MediaController? = null
     private var progressJob: Job? = null
     private var pendingPlayback: PendingPlayback? = null
+
+    companion object {
+        private const val PROGRESS_TICK_MS = 250L
+    }
 
     // Flujos reactivos de Compose para dibujar la UI (Play/Pause, progreso, etc)
     private val _isPlaying = MutableStateFlow(false)
@@ -68,7 +77,12 @@ class PhantomPlayerController @Inject constructor(
     // Mantenemos referencia de las canciones para buscarlas por mediaId
     private var currentPlaylist = emptyList<Song>()
 
-    init {
+    @Volatile
+    private var controllerInitializationStarted = false
+
+    private fun ensureControllerInitialized() {
+        if (controllerInitializationStarted || mediaController != null) return
+        controllerInitializationStarted = true
         initializeController()
     }
 
@@ -80,10 +94,19 @@ class PhantomPlayerController @Inject constructor(
         
         mediaControllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         mediaControllerFuture?.addListener({
-            mediaController = mediaControllerFuture?.get()
-            setupPlayerListeners()
-            playPendingIfAny()
+            try {
+                mediaController = mediaControllerFuture?.get()
+                setupPlayerListeners()
+                playPendingIfAny()
+            } catch (t: Throwable) {
+                controllerInitializationStarted = false
+                _lastErrorMessage.value = "No se pudo inicializar el reproductor. Intenta nuevamente."
+            }
         }, MoreExecutors.directExecutor())
+    }
+
+    fun preWarm() {
+        ensureControllerInitialized()
     }
 
     private fun playPendingIfAny() {
@@ -91,16 +114,24 @@ class PhantomPlayerController @Inject constructor(
         val controller = mediaController ?: return
 
         pendingPlayback = null
-        startPlayback(controller, pending.songs, pending.startIndex)
+        startPlayback(controller, pending.queueItems, pending.startIndex)
     }
 
     private fun setupPlayerListeners() {
         mediaController?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _isPlaying.value = isPlaying
+                if (isPlaying) {
+                    startProgressUpdater()
+                } else {
+                    stopProgressUpdater()
+                }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+                    stopProgressUpdater()
+                }
                 syncProgressFromController()
             }
 
@@ -117,8 +148,6 @@ class PhantomPlayerController @Inject constructor(
                 syncProgressFromController()
             }
         })
-
-        startProgressUpdater()
     }
 
     private fun startProgressUpdater() {
@@ -127,9 +156,14 @@ class PhantomPlayerController @Inject constructor(
         progressJob = controllerScope.launch {
             while (isActive) {
                 syncProgressFromController()
-                delay(500)
+                delay(PROGRESS_TICK_MS)
             }
         }
+    }
+
+    private fun stopProgressUpdater() {
+        progressJob?.cancel()
+        progressJob = null
     }
 
     private fun syncProgressFromController() {
@@ -146,23 +180,34 @@ class PhantomPlayerController @Inject constructor(
      * activando Gapless Playback nativo.
      * Soporta URLs crudas "phantom-yt://" para delegar Client-Side Stream Resolution.
      */
-    fun playSongs(songs: List<Song>, startIndex: Int) {
+    fun playResolvedQueue(queueItems: List<ResolvedQueueItem>, startIndex: Int) {
+        ensureControllerInitialized()
         val controller = mediaController
         if (controller == null) {
-            pendingPlayback = PendingPlayback(songs = songs, startIndex = startIndex)
-            _currentSong.value = songs.getOrNull(startIndex)
+            pendingPlayback = PendingPlayback(queueItems = queueItems, startIndex = startIndex)
+            _currentSong.value = queueItems.getOrNull(startIndex)?.song
             _isPlaying.value = false
             return
         }
 
-        startPlayback(controller, songs, startIndex)
+        startPlayback(controller, queueItems, startIndex)
     }
 
-    private fun startPlayback(controller: MediaController, songs: List<Song>, startIndex: Int) {
-        _lastErrorMessage.value = null
-        currentPlaylist = songs
+    private fun startPlayback(
+        controller: MediaController,
+        queueItems: List<ResolvedQueueItem>,
+        startIndex: Int
+    ) {
+        if (queueItems.isEmpty()) {
+            _lastErrorMessage.value = "No hay canciones reproducibles en esta selección."
+            return
+        }
 
-        val mediaItems = songs.mapNotNull { song ->
+        _lastErrorMessage.value = null
+        currentPlaylist = queueItems.map { it.song }
+
+        val mediaItems = queueItems.map { item ->
+            val song = item.song
             val metadataBuilder = MediaMetadata.Builder()
                 .setTitle(song.title)
                 .setArtist(song.artist)
@@ -170,36 +215,17 @@ class PhantomPlayerController @Inject constructor(
             if (song.coverUrl.isNotBlank()) {
                 metadataBuilder.setArtworkUri(android.net.Uri.parse(song.coverUrl))
             }
-            
-            // Determinamos la URI de audio según el origen
-            val directUri = if (song.isDownloaded && song.localPath != null) {
-                if (song.localPath.startsWith("content://") || song.localPath.startsWith("file://")) {
-                    song.localPath
-                } else {
-                    "file://${song.localPath}"
-                }
-            } else if (song.provider == "YouTube") {
-                "phantom-yt:${song.id}"
-            } else {
-                // iTunes y otros usamos búsqueda
-                "phantom-search:${song.title} - ${song.artist}"
-            }
 
             MediaItem.Builder()
                 .setMediaId(song.id)
-                .setUri(directUri)
+                .setUri(item.streamUri)
                 .setMediaMetadata(metadataBuilder.build())
                 .build()
         }
 
-        if (mediaItems.isEmpty()) {
-            _lastErrorMessage.value = "No hay canciones reproducibles en esta selección."
-            return
-        }
-
         // Ajustamos el startIndex por si se filtraron canciones
         val adjustedIndex = startIndex.coerceIn(0, mediaItems.lastIndex)
-        _currentSong.value = songs.getOrNull(startIndex)
+        _currentSong.value = queueItems.getOrNull(startIndex)?.song
 
         controller.apply {
             setMediaItems(mediaItems, adjustedIndex, C.TIME_UNSET)
@@ -211,14 +237,17 @@ class PhantomPlayerController @Inject constructor(
     }
 
     fun playNext() {
+        ensureControllerInitialized()
         mediaController?.seekToNext()
     }
 
     fun playPrevious() {
+        ensureControllerInitialized()
         mediaController?.seekToPrevious()
     }
 
     fun setShuffleMode(enabled: Boolean) {
+        ensureControllerInitialized()
         mediaController?.shuffleModeEnabled = enabled
     }
 
@@ -230,9 +259,11 @@ class PhantomPlayerController @Inject constructor(
             it.stop()
             it.clearMediaItems()
         }
+        stopProgressUpdater()
     }
 
     fun togglePlayPause() {
+        ensureControllerInitialized()
         if (mediaController?.isPlaying == true) {
             mediaController?.pause()
         } else {
@@ -241,6 +272,7 @@ class PhantomPlayerController @Inject constructor(
     }
 
     fun seekTo(positionMs: Long) {
+        ensureControllerInitialized()
         mediaController?.seekTo(positionMs)
         _positionMs.value = positionMs.coerceAtLeast(0L)
     }
@@ -253,6 +285,7 @@ class PhantomPlayerController @Inject constructor(
     }
 
     fun destroy() {
+        stopProgressUpdater()
         mediaControllerFuture?.let {
             MediaController.releaseFuture(it)
         }

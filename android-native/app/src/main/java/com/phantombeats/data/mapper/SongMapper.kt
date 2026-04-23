@@ -13,6 +13,8 @@ fun SongEntity.toDomain(): Song {
         provider = this.provider,
         localPath = this.localPath,
         playCount = this.playCount,
+        skipCount = this.skipCount,
+        lastPlayed = this.lastPlayed,
         isFavorite = this.isFavorite
     )
 }
@@ -27,7 +29,8 @@ fun Song.toEntity(): SongEntity {
         provider = this.provider,
         localPath = this.localPath,
         playCount = this.playCount,
-        lastPlayed = System.currentTimeMillis(),
+        skipCount = this.skipCount,
+        lastPlayed = if (this.lastPlayed > 0L) this.lastPlayed else System.currentTimeMillis(),
         isFavorite = this.isFavorite
     )
 }

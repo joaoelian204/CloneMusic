@@ -15,8 +15,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,9 +28,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import androidx.compose.ui.Alignment
@@ -38,7 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlin.math.min
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import com.phantombeats.ui.theme.PhantomBorderAlpha
 import com.phantombeats.ui.viewmodels.PlayerViewModel
 import com.phantombeats.ui.viewmodels.PlaylistViewModel
@@ -56,31 +57,45 @@ fun ExploreScreen(
     val context = LocalContext.current
     val uiState by searchViewModel.uiState.collectAsState()
     val playlists by playlistViewModel.playlists.collectAsState()
-    var query by remember { mutableStateOf("") }
-    var performanceMode by remember { mutableStateOf("balanced") }
+    var query by rememberSaveable { mutableStateOf("") }
     var selectedSongForPlaylist by remember { mutableStateOf<com.phantombeats.domain.model.Song?>(null) }
     val successState = uiState as? SearchUiState.Success
+    var lastSuccessState by remember { mutableStateOf<SearchUiState.Success?>(null) }
     val resultCount = successState?.songs?.size ?: 0
-    val listState = rememberLazyListState()
+    var visibleSongsCount by rememberSaveable { mutableStateOf(15) }
+    var isDebouncing by rememberSaveable { mutableStateOf(false) }
+    val normalizedQuery = query.trim()
 
-    LaunchedEffect(successState?.songs?.size, successState?.hasMore, successState?.isLoadingMore) {
-        val stateSnapshot = successState ?: return@LaunchedEffect
-        if (!stateSnapshot.hasMore) return@LaunchedEffect
-
-        snapshotFlow {
-            val layoutInfo = listState.layoutInfo
-            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            val total = layoutInfo.totalItemsCount
-            lastVisible to total
+    LaunchedEffect(successState?.query, successState?.mode) {
+        visibleSongsCount = 15
+        if (successState != null) {
+            lastSuccessState = successState
         }
-            .distinctUntilChanged()
-            .collect { (lastVisible, total) ->
-                if (total <= 0) return@collect
-                val shouldLoadMore = lastVisible >= total - 5
-                if (shouldLoadMore) {
-                    searchViewModel.loadMore()
-                }
-            }
+    }
+
+    LaunchedEffect(normalizedQuery) {
+        if (normalizedQuery.isBlank()) {
+            isDebouncing = false
+            searchViewModel.search("")
+            return@LaunchedEffect
+        }
+
+        if (normalizedQuery.length < 2) {
+            isDebouncing = false
+            searchViewModel.search("")
+            return@LaunchedEffect
+        }
+
+        isDebouncing = true
+        try {
+            // Debounce corto para evitar disparos en cada tecla y mantener sensación de tiempo real.
+            delay(320)
+            searchViewModel.search(normalizedQuery, "balanced")
+        } catch (_: CancellationException) {
+            // Cambio de query durante debounce: flujo esperado.
+        } finally {
+            isDebouncing = false
+        }
     }
 
     GradientContainer(topPadding = 4.dp, bottomPadding = 0.dp) {
@@ -114,16 +129,24 @@ fun ExploreScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ModeChip(
-                            label = "Balanced",
-                            selected = performanceMode == "balanced",
-                            onClick = { performanceMode = "balanced" }
-                        )
-                        ModeChip(
-                            label = "Turbo",
-                            selected = performanceMode == "turbo",
-                            onClick = { performanceMode = "turbo" }
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                                shape = RoundedCornerShape(999.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                shape = RoundedCornerShape(999.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Busqueda en vivo",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
 
@@ -138,8 +161,10 @@ fun ExploreScreen(
                         )
                         Text(
                             text = when {
+                                isDebouncing || uiState == SearchUiState.Loading -> "Buscando..."
                                 resultCount > 0 && successState?.hasMore == true -> "$resultCount resultados (parcial)"
                                 resultCount > 0 -> "$resultCount resultados"
+                                normalizedQuery.length < 2 -> "Escribe para buscar"
                                 else -> "Sin resultados"
                             },
                             style = MaterialTheme.typography.labelMedium,
@@ -149,7 +174,6 @@ fun ExploreScreen(
                     }
                 }
 
-                ActionButton(label = "Buscar ahora", onClick = { searchViewModel.search(query, performanceMode) })
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -166,101 +190,59 @@ fun ExploreScreen(
                     SearchUiState.Idle -> {
                         EmptyPanel(
                             title = "Sin resultados aun",
-                            subtitle = "Realiza una busqueda para cargar canciones en tiempo real."
+                            subtitle = "Escribe el nombre de una cancion o artista para buscar en tiempo real."
                         )
                     }
                     SearchUiState.Loading -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        val previous = lastSuccessState
+                        if (previous != null && normalizedQuery.length >= 2) {
+                            ExploreResultsContent(
+                                state = previous,
+                                visibleSongsCount = visibleSongsCount,
+                                onVisibleSongsCountChange = { visibleSongsCount = it },
+                                onPlaySong = { songs, index -> playerViewModel.playSongsQueue(songs, index) },
+                                onToggleFavorite = { song ->
+                                    val newFav = !song.isFavorite
+                                    searchViewModel.updateFavoriteLocal(song.id, newFav)
+                                    playerViewModel.setFavorite(song, newFav)
+                                },
+                                onSongToPlaylist = { selectedSongForPlaylist = it },
+                                onLoadMore = { searchViewModel.loadMore() },
+                                onNavigateToArtist = onNavigateToArtist,
+                                onNavigateToAlbum = onNavigateToAlbum,
+                                showTopSpinner = true
+                            )
+                        } else {
+                            ScreenLoadingSpinner()
                         }
                     }
                     is SearchUiState.Error -> {
-                        EmptyPanel(
-                            title = "Error de busqueda",
-                            subtitle = state.message
-                        )
+                        if (isDebouncing) {
+                            ScreenLoadingSpinner()
+                        } else {
+                            EmptyPanel(
+                                title = "Error de busqueda",
+                                subtitle = state.message
+                            )
+                        }
                     }
                     is SearchUiState.Success -> {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "Resultados",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                fontWeight = FontWeight.SemiBold
-                            )
-
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                if (state.artists.isNotEmpty()) {
-                                    item {
-                                        ArtistsRow(
-                                            artists = state.artists,
-                                            onArtistClick = { artist -> 
-                                                onNavigateToArtist(artist)
-                                            }
-                                        )
-                                    }
-                                }
-
-                                if (state.albums.isNotEmpty()) {
-                                    item {
-                                        AlbumsRow(
-                                            albums = state.albums,
-                                            onAlbumClick = { album -> 
-                                                onNavigateToAlbum(album)
-                                            }
-                                        )
-                                    }
-                                }
-
-                                if (state.songs.isNotEmpty()) {
-                                    item {
-                                        Text(
-                                            text = "Canciones",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                }
-                                
-                                items(
-                                    count = state.songs.size,
-                                    key = { index -> state.songs[index].id }
-                                ) { index ->
-                                    val song = state.songs[index]
-                                    SongRowCard(
-                                        song = song,
-                                        onPlay = { playerViewModel.playSongsQueue(state.songs, index) },
-                                        onToggleFavorite = {
-                                            val newFav = !song.isFavorite
-                                            searchViewModel.updateFavoriteLocal(song.id, newFav)
-                                            playerViewModel.setFavorite(song, newFav)
-                                        },
-                                        trailingLabel = "Lista",
-                                        onTrailingClick = { selectedSongForPlaylist = song }
-                                    )
-                                }
-                            }
-
-                            if (state.isLoadingMore) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-                        }
+                        ExploreResultsContent(
+                            state = state,
+                            visibleSongsCount = visibleSongsCount,
+                            onVisibleSongsCountChange = { visibleSongsCount = it },
+                            onPlaySong = { songs, index -> playerViewModel.playSongsQueue(songs, index) },
+                            onToggleFavorite = { song ->
+                                val newFav = !song.isFavorite
+                                searchViewModel.updateFavoriteLocal(song.id, newFav)
+                                playerViewModel.setFavorite(song, newFav)
+                            },
+                            onSongToPlaylist = { selectedSongForPlaylist = it },
+                            onLoadMore = { searchViewModel.loadMore() },
+                            onNavigateToArtist = onNavigateToArtist,
+                            onNavigateToAlbum = onNavigateToAlbum,
+                            showTopSpinner = false
+                        )
                     }
                 }
             }
@@ -293,3 +275,139 @@ fun ExploreScreen(
         }
     }
 }
+
+@Composable
+private fun ExploreResultsContent(
+    state: SearchUiState.Success,
+    visibleSongsCount: Int,
+    onVisibleSongsCountChange: (Int) -> Unit,
+    onPlaySong: (List<com.phantombeats.domain.model.Song>, Int) -> Unit,
+    onToggleFavorite: (com.phantombeats.domain.model.Song) -> Unit,
+    onSongToPlaylist: (com.phantombeats.domain.model.Song) -> Unit,
+    onLoadMore: () -> Unit,
+    onNavigateToArtist: (com.phantombeats.domain.model.Artist) -> Unit,
+    onNavigateToAlbum: (com.phantombeats.domain.model.Album) -> Unit,
+    showTopSpinner: Boolean
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Resultados",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                fontWeight = FontWeight.SemiBold
+            )
+
+            if (showTopSpinner) {
+                CircularProgressIndicator(
+                    modifier = Modifier.height(16.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                )
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (state.artists.isNotEmpty()) {
+                item {
+                    ArtistsRow(
+                        artists = state.artists,
+                        onArtistClick = { artist -> onNavigateToArtist(artist) }
+                    )
+                }
+            }
+
+            if (state.albums.isNotEmpty()) {
+                item {
+                    AlbumsRow(
+                        albums = state.albums,
+                        onAlbumClick = { album -> onNavigateToAlbum(album) }
+                    )
+                }
+            }
+
+            if (state.songs.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Canciones",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+
+                item {
+                    val loadedSongsText = if (state.hasMore) "${state.songs.size}+" else state.songs.size.toString()
+                    Text(
+                        text = "Mostrando ${min(visibleSongsCount, state.songs.size)} de $loadedSongsText",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                }
+            }
+
+            items(
+                count = state.songs.take(visibleSongsCount).size,
+                key = { index -> state.songs[index].id }
+            ) { index ->
+                val song = state.songs[index]
+                SongRowCard(
+                    song = song,
+                    onPlay = { onPlaySong(state.songs, index) },
+                    onToggleFavorite = { onToggleFavorite(song) },
+                    trailingLabel = "Lista",
+                    onTrailingClick = { onSongToPlaylist(song) }
+                )
+            }
+
+            if (state.songs.size > visibleSongsCount || state.hasMore) {
+                item {
+                    ActionButton(
+                        label = "Ver más",
+                        onClick = {
+                            val nextVisible = visibleSongsCount + 15
+                            onVisibleSongsCountChange(nextVisible)
+                            if (state.hasMore && nextVisible > state.songs.size && !state.isLoadingMore) {
+                                onLoadMore()
+                            }
+                        }
+                    )
+                }
+            } else if (state.songs.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "No hay más resultados",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        if (state.isLoadingMore) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ScreenLoadingSpinner(modifier = Modifier.padding(8.dp))
+            }
+        }
+    }
+}
+

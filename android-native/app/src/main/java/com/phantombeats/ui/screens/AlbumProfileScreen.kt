@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +32,7 @@ import com.phantombeats.ui.viewmodels.SearchViewModel
 
 @Composable
 fun AlbumProfileScreen(
+    albumId: String,
     albumTitle: String,
     artistName: String,
     coverUrl: String,
@@ -42,8 +42,12 @@ fun AlbumProfileScreen(
 ) {
     val uiState by searchViewModel.uiState.collectAsState()
 
-    LaunchedEffect(albumTitle, artistName) {
-        searchViewModel.search("$artistName $albumTitle canciones", "balanced")
+    LaunchedEffect(albumId, albumTitle, artistName) {
+        searchViewModel.searchAlbumTracks(
+            albumId = albumId,
+            albumTitle = albumTitle,
+            artistName = artistName
+        )
     }
 
     GradientContainer(topPadding = 4.dp, bottomPadding = 0.dp) {
@@ -97,9 +101,7 @@ fun AlbumProfileScreen(
 
             when (val state = uiState) {
                 SearchUiState.Idle, SearchUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                    ScreenLoadingSpinner()
                 }
                 is SearchUiState.Error -> {
                     EmptyPanel(title = "Error", subtitle = state.message)

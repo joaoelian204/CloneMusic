@@ -45,5 +45,5 @@ interface SongDao {
     suspend fun updateFavoriteStatus(songId: String, isFav: Boolean)
 
     @Query("UPDATE songs SET localPath = :localPath WHERE id = :songId")
-    suspend fun updateLocalPath(songId: String, localPath: String)
+    suspend fun updateLocalPath(songId: String, localPath: String?)
 }

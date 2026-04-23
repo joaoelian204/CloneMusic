@@ -18,16 +18,23 @@ class LibraryViewModel @Inject constructor(
 
     val cacheInitialized: StateFlow<Boolean> = repository.getAllCachedSongs()
         .map { true }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val cachedSongs: StateFlow<List<Song>> = repository.getAllCachedSongs()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val favoriteSongs: StateFlow<List<Song>> = repository.getAllCachedSongs()
         .map { songs -> songs.filter { it.isFavorite } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val downloadedSongs: StateFlow<List<Song>> = repository.getAllCachedSongs()
         .map { songs -> songs.filter { it.isDownloaded } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val pendingDownloadsCount: StateFlow<Int> = repository.getAllCachedSongs()
+        .map { songs -> songs.count { it.localPath?.startsWith("__PENDING__") == true } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val recentSearchQueries: StateFlow<List<String>> = repository.getRecentSearchQueries(limit = 20)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 }

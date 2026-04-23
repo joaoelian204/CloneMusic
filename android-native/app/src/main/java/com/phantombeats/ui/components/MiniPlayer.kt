@@ -3,6 +3,7 @@ package com.phantombeats.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,10 +12,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.phantombeats.ui.viewmodels.PlayerUiState
@@ -41,7 +43,7 @@ fun MiniPlayer(
     val song = currentSong ?: when (val state = uiState) {
         is PlayerUiState.Playing -> state.song
         is PlayerUiState.Error -> state.song
-        is PlayerUiState.Buffering -> null
+        is PlayerUiState.Buffering -> state.song
         else -> null
     }
 
@@ -52,6 +54,8 @@ fun MiniPlayer(
     val isDownloaded = song?.isDownloaded == true
     val progress = if (durationMs > 0L) positionMs.toFloat() / durationMs.toFloat() else 0f
     val buffered = if (durationMs > 0L) bufferedPositionMs.toFloat() / durationMs.toFloat() else 0f
+    var horizontalDragDistance by remember { mutableFloatStateOf(0f) }
+    val dismissThresholdPx = 96f
 
     Column(
         modifier = modifier
@@ -63,18 +67,23 @@ fun MiniPlayer(
                 shape = RoundedCornerShape(16.dp)
             )
             .clip(RoundedCornerShape(16.dp))
-            .clickable { onNavigateToFullPlayer() }
-            .pointerInput(Unit) {
+            .pointerInput(song?.id, isPlaying) {
                 detectHorizontalDragGestures(
-                    onDragEnd = { /* Final del gesto */ },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        if (dragAmount > 15f || dragAmount < -15f) {
+                    onHorizontalDrag = { _, dragAmount ->
+                        horizontalDragDistance += dragAmount
+                    },
+                    onDragEnd = {
+                        if (kotlin.math.abs(horizontalDragDistance) > dismissThresholdPx) {
                             playerViewModel.stop()
                         }
+                        horizontalDragDistance = 0f
+                    },
+                    onDragCancel = {
+                        horizontalDragDistance = 0f
                     }
                 )
             }
+            .clickable { onNavigateToFullPlayer() }
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
     ) {
         MiniPlayerProgress(

@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +27,25 @@ import com.phantombeats.domain.model.Song
 import com.phantombeats.ui.viewmodels.PlayerViewModel
 import com.phantombeats.ui.viewmodels.SearchUiState
 import com.phantombeats.ui.viewmodels.SearchViewModel
+
+private fun normalizeArtistText(value: String): String {
+    return value
+        .lowercase()
+        .replace(Regex("[^a-z0-9 ]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+}
+
+private fun belongsToArtist(song: Song, artistName: String): Boolean {
+    val expected = normalizeArtistText(artistName)
+    if (expected.isBlank()) return true
+
+    val artistField = normalizeArtistText(song.artist)
+    if (artistField == expected || artistField.contains(expected)) return true
+
+    val titleField = normalizeArtistText(song.title)
+    return titleField.contains(expected)
+}
 
 @Composable
 fun ArtistProfileScreen(
@@ -100,14 +118,13 @@ fun ArtistProfileScreen(
 
             when (val state = uiState) {
                 SearchUiState.Idle, SearchUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                    ScreenLoadingSpinner()
                 }
                 is SearchUiState.Error -> {
                     EmptyPanel(title = "Error", subtitle = state.message)
                 }
                 is SearchUiState.Success -> {
+                    val filteredSongs = state.songs.filter { belongsToArtist(it, artistName) }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -120,11 +137,11 @@ fun ArtistProfileScreen(
                                 modifier = Modifier.padding(vertical = 8.dp)
                             )
                         }
-                        items(state.songs.size) { index ->
-                            val song = state.songs[index]
+                        items(filteredSongs.size) { index ->
+                            val song = filteredSongs[index]
                             SongRowCard(
                                 song = song,
-                                onPlay = { playerViewModel.playSongsQueue(state.songs, index) },
+                                onPlay = { playerViewModel.playSongsQueue(filteredSongs, index) },
                                 onToggleFavorite = {
                                     searchViewModel.updateFavoriteLocal(song.id, !song.isFavorite)
                                 },

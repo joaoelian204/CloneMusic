@@ -50,6 +50,8 @@ class RoomStreamCacheRepository @Inject constructor(
     override suspend fun getLocalDownloadedFile(songId: String): String? {
         return withContext(Dispatchers.IO) {
             val outDir = File(context.filesDir, "offline_audio")
+            val encryptedFile = File(outDir, "$songId.pba")
+            if (encryptedFile.exists()) return@withContext encryptedFile.absolutePath
             val mp3File = File(outDir, "$songId.mp3")
             if (mp3File.exists()) return@withContext mp3File.absolutePath
             val m4aFile = File(outDir, "$songId.m4a")

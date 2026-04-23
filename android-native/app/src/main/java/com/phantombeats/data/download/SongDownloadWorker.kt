@@ -12,26 +12,37 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import com.phantombeats.data.local.dao.SongDao
+import com.phantombeats.data.security.OfflineCryptoManager
 import com.phantombeats.domain.repository.StreamResolver
 import java.io.File
+import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.net.URL
+import javax.crypto.CipherOutputStream
+import kotlinx.coroutines.CancellationException
+import androidx.work.workDataOf
 
 @HiltWorker
 class SongDownloadWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val songDao: SongDao,
-    private val streamResolver: StreamResolver
+    private val streamResolver: StreamResolver,
+    private val offlineCryptoManager: OfflineCryptoManager
 ) : CoroutineWorker(context, params) {
 
     companion object {
         const val KEY_SONG_ID = "song_id"
+        const val KEY_PROGRESS_BYTES = "progress_bytes"
+        const val KEY_PROGRESS_TOTAL_BYTES = "progress_total_bytes"
         private const val PENDING_DOWNLOAD_PATH = "__PENDING__"
     }
 
     override suspend fun doWork(): Result {
         val songId = inputData.getString(KEY_SONG_ID) ?: return Result.failure()
+        var outFile: File? = null
 
         return try {
             val song = songDao.getSongById(songId) ?: return Result.failure()
@@ -45,7 +56,11 @@ class SongDownloadWorker @AssistedInject constructor(
 
             setForeground(createForegroundInfo(song.title))
 
-            val streamResult = streamResolver.getStreamUrl(songId)
+            val streamResult = if (song.provider.equals("YouTube", ignoreCase = true)) {
+                streamResolver.getStreamUrl(songId)
+            } else {
+                streamResolver.resolveBySearch("${song.title} - ${song.artist}")
+            }
             val streamUrl = streamResult.getOrThrow()
 
             val outDir = File(applicationContext.filesDir, "offline_audio")
@@ -53,8 +68,7 @@ class SongDownloadWorker @AssistedInject constructor(
                 outDir.mkdirs()
             }
 
-            val extension = if (streamUrl.contains(".m4a")) "m4a" else "mp3"
-            val outFile = File(outDir, "$songId.$extension")
+            outFile = File(outDir, "$songId.pba")
 
             val connection = URL(streamUrl).openConnection() as HttpURLConnection
             connection.connectTimeout = 20000
@@ -64,21 +78,84 @@ class SongDownloadWorker @AssistedInject constructor(
             connection.connect()
 
             if (connection.responseCode !in 200..299) {
+                val code = connection.responseCode
                 connection.disconnect()
-                return Result.retry()
+                if (code in 500..599 && runAttemptCount < 3) {
+                    return Result.retry()
+                }
+                songDao.updateLocalPath(songId, null)
+                return Result.failure()
             }
+
+            if (isStopped) {
+                connection.disconnect()
+                songDao.updateLocalPath(songId, null)
+                outFile.delete()
+                return Result.failure()
+            }
+
+            val totalBytes = connection.contentLengthLong.takeIf { it > 0L } ?: -1L
+            var downloadedBytes = 0L
+            var bytesSinceLastProgress = 0L
 
             connection.inputStream.use { input ->
                 outFile.outputStream().use { output ->
-                    input.copyTo(output)
+                    val cipher = offlineCryptoManager.createEncryptCipher()
+                    val iv = cipher.iv
+                    output.write(iv)
+                    CipherOutputStream(output, cipher).use { cipherOutput ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            if (isStopped) {
+                                throw CancellationException("Download cancelled")
+                            }
+
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            cipherOutput.write(buffer, 0, read)
+                            downloadedBytes += read
+                            bytesSinceLastProgress += read
+
+                            if (bytesSinceLastProgress >= 256 * 1024) {
+                                setProgress(
+                                    workDataOf(
+                                        KEY_PROGRESS_BYTES to downloadedBytes,
+                                        KEY_PROGRESS_TOTAL_BYTES to totalBytes
+                                    )
+                                )
+                                bytesSinceLastProgress = 0L
+                            }
+                        }
+                    }
                 }
             }
             connection.disconnect()
 
+            setProgress(
+                workDataOf(
+                    KEY_PROGRESS_BYTES to downloadedBytes,
+                    KEY_PROGRESS_TOTAL_BYTES to totalBytes
+                )
+            )
+
             songDao.updateLocalPath(songId, outFile.absolutePath)
             Result.success()
-        } catch (_: Exception) {
-            Result.retry()
+        } catch (_: CancellationException) {
+            outFile?.takeIf { it.exists() }?.delete()
+            songDao.updateLocalPath(songId, null)
+            Result.failure()
+        } catch (e: Exception) {
+            val isTransient = e is SocketTimeoutException ||
+                e is UnknownHostException ||
+                e is ConnectException
+
+            if (isTransient && runAttemptCount < 3) {
+                Result.retry()
+            } else {
+                outFile?.takeIf { it.exists() }?.delete()
+                songDao.updateLocalPath(songId, null)
+                Result.failure()
+            }
         }
     }
 

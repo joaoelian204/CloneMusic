@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -30,7 +32,6 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,12 +70,15 @@ fun FullPlayerScreen(
     val fallbackSong = when (val state = uiState) {
         is PlayerUiState.Playing -> state.song
         is PlayerUiState.Error -> state.song
+        is PlayerUiState.Buffering -> state.song
         else -> null
     }
     val song = currentSong ?: fallbackSong
     val progress = if (durationMs > 0L) positionMs.toFloat() / durationMs.toFloat() else 0f
     var selectedSongForPlaylist by remember { mutableStateOf<com.phantombeats.domain.model.Song?>(null) }
     var optimisticFavorite by remember(song?.id) { mutableStateOf(song?.isFavorite == true) }
+    val isPendingDownload = song?.localPath?.startsWith("__PENDING__") == true
+    val isDownloaded = song?.isDownloaded == true
 
     LaunchedEffect(song?.isFavorite) {
         optimisticFavorite = song?.isFavorite == true
@@ -181,19 +185,9 @@ fun FullPlayerScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(18.dp)
-                    )
-                    .background(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f),
-                        shape = RoundedCornerShape(18.dp)
-                    )
-                    .padding(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = {
@@ -203,39 +197,65 @@ fun FullPlayerScreen(
                             playerViewModel.setFavorite(song, newFav)
                         }
                     },
-                    modifier = Modifier
-                        .size(52.dp)
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                            shape = RoundedCornerShape(14.dp)
-                        )
+                    modifier = Modifier.size(56.dp)
                 ) {
                     Icon(
                         imageVector = if (optimisticFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = if (optimisticFavorite) "Quitar de favoritos" else "Agregar a favoritos",
                         tint = favoriteTint,
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(28.dp)
                             .scale(favoriteScale)
                     )
                 }
 
-                OutlinedButton(
+                IconButton(
+                    onClick = {
+                        val activeSong = song
+                        if (activeSong == null) return@IconButton
+                        if (activeSong.provider == "Local") {
+                            Toast.makeText(context, "Esta canción ya es local", Toast.LENGTH_SHORT).show()
+                            return@IconButton
+                        }
+                        if (isPendingDownload) {
+                            Toast.makeText(context, "Descarga en progreso", Toast.LENGTH_SHORT).show()
+                            return@IconButton
+                        }
+                        if (isDownloaded) {
+                            Toast.makeText(context, "Ya está descargada", Toast.LENGTH_SHORT).show()
+                            return@IconButton
+                        }
+
+                        playerViewModel.downloadSingleSong(activeSong)
+                        Toast.makeText(context, "Descargando canción", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(
+                        imageVector = when {
+                            isDownloaded -> Icons.Default.CheckCircle
+                            else -> Icons.Default.Download
+                        },
+                        contentDescription = if (isDownloaded) "Descargada" else if (isPendingDownload) "Descargando" else "Descargar",
+                        tint = if (isDownloaded || isPendingDownload) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                IconButton(
                     onClick = {
                         if (song != null) {
                             selectedSongForPlaylist = song
                         }
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.size(56.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlaylistAdd,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        contentDescription = "Agregar a playlist",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(28.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Agregar a playlist")
                 }
             }
 

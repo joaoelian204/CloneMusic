@@ -18,6 +18,23 @@ interface SongRepository {
     
     suspend fun searchAlbums(query: String, limit: Int = 5): Result<List<Album>>
 
+    suspend fun searchAllSongsByArtist(
+        artistName: String,
+        maxSongs: Int = 400
+    ): Result<List<Song>>
+
+    suspend fun searchAllAlbumsByArtist(
+        artistName: String,
+        maxAlbums: Int = 300
+    ): Result<List<Album>>
+
+    suspend fun getAlbumTracks(
+        albumId: String,
+        albumTitle: String,
+        artistName: String,
+        limit: Int = 60
+    ): Result<List<Song>>
+
     /**
      * Variante paginada para explorar catálogos largos sin cargar todo de una sola vez.
      */
@@ -54,4 +71,16 @@ interface SongRepository {
      * Descarga y guarda en disco.
      */
     suspend fun downloadSong(song: Song): Result<Unit>
+
+    /**
+     * Cancela la descarga en curso/cola de una canción.
+     */
+    suspend fun cancelSongDownload(songId: String): Result<Unit>
+
+    /**
+     * Elimina el archivo descargado local y limpia su estado offline.
+     */
+    suspend fun removeDownloadedSong(songId: String): Result<Unit>
+
+    fun getRecentSearchQueries(limit: Int = 10): Flow<List<String>>
 }

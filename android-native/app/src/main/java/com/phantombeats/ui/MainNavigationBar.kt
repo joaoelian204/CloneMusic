@@ -50,12 +50,19 @@ fun MainNavigationBar(
                 label = { Text(screen.title) },
                 selected = isSelected,
                 onClick = {
-                    navController.navigate(screen.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+                    if (isSelected) {
+                        return@NavigationBarItem
+                    }
+
+                    val restoredFromBackStack = navController.popBackStack(screen.route, inclusive = false)
+                    if (!restoredFromBackStack) {
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(

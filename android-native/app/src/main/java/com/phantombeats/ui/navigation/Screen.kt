@@ -7,25 +7,34 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.graphics.vector.ImageVector
+import android.net.Uri
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "Para Ti", Icons.Default.Home)
     object Explore : Screen("explore", "Explorar", Icons.Default.Search)
     object MySongs : Screen("my_songs", "Mis canciones", Icons.Default.LibraryMusic)
-    object Offline : Screen("offline", "Offline", Icons.Default.Download)
+    object Offline : Screen("offline", "Descargas", Icons.Default.Download)
     object Playlists : Screen("playlists", "Playlists", Icons.Default.List)
     
     // Screens for Artist and Album Details
     object ArtistProfile : Screen("artist_profile/{artistName}/{imageUrl}", "Artista", Icons.Default.Search) {
         fun createRoute(name: String, image: String): String {
-            val safeImage = if (image.isBlank()) "none" else java.net.URLEncoder.encode(image, "UTF-8")
-            return "artist_profile/${java.net.URLEncoder.encode(name, "UTF-8")}/$safeImage"
+            val safeImage = if (image.isBlank()) "none" else Uri.encode(image)
+            return "artist_profile/${Uri.encode(name)}/$safeImage"
         }
     }
-    object AlbumProfile : Screen("album_profile/{albumTitle}/{artistName}/{coverUrl}", "Álbum", Icons.Default.Search) {
-        fun createRoute(title: String, artist: String, cover: String): String {
-            val safeCover = if (cover.isBlank()) "none" else java.net.URLEncoder.encode(cover, "UTF-8")
-            return "album_profile/${java.net.URLEncoder.encode(title, "UTF-8")}/${java.net.URLEncoder.encode(artist, "UTF-8")}/$safeCover"
+    object AlbumProfile : Screen("album_profile/{albumId}/{albumTitle}/{artistName}/{coverUrl}", "Álbum", Icons.Default.Search) {
+        fun createRoute(albumId: String, title: String, artist: String, cover: String): String {
+            val safeCover = if (cover.isBlank()) "none" else Uri.encode(cover)
+            val safeAlbumId = if (albumId.isBlank()) "none" else Uri.encode(albumId)
+            return "album_profile/$safeAlbumId/${Uri.encode(title)}/${Uri.encode(artist)}/$safeCover"
+        }
+    }
+
+    object AutoPlaylistDetail : Screen("auto_playlist/{playlistId}", "Auto Playlist", Icons.Default.LibraryMusic) {
+        fun createRoute(playlistId: String): String {
+            val safeId = if (playlistId.isBlank()) "none" else Uri.encode(playlistId)
+            return "auto_playlist/$safeId"
         }
     }
     

@@ -3,7 +3,9 @@ package com.phantombeats.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,10 +14,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +41,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,14 +51,19 @@ import com.phantombeats.domain.model.Song
 import com.phantombeats.ui.theme.PhantomBorderAlpha
 import com.phantombeats.ui.theme.PhantomDarkGray
 import com.phantombeats.ui.utils.toDisplayText
+import androidx.compose.foundation.ExperimentalFoundationApi
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun SongRowCard(
+    modifier: Modifier = Modifier,
     song: Song,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
     trailingLabel: String,
-    onTrailingClick: (() -> Unit)? = null
+    onTrailingClick: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
+    extraActions: (@Composable RowScope.() -> Unit)? = null
 ) {
     val display = song.toDisplayText()
     var optimisticFavorite by remember(song.id) { mutableStateOf(song.isFavorite) }
@@ -74,12 +84,15 @@ fun SongRowCard(
     )
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, PhantomBorderAlpha, RoundedCornerShape(14.dp))
-            .clickable(onClick = onPlay)
+            .combinedClickable(
+                onClick = onPlay,
+                onLongClick = onLongPress
+            )
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -96,12 +109,16 @@ fun SongRowCard(
                 .background(PhantomDarkGray)
         )
         Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.fillMaxWidth(0.62f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 2.dp)
+        ) {
             Text(
                 text = display.title,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
@@ -126,19 +143,69 @@ fun SongRowCard(
             }
         }
 
-        TextButton(onClick = { (onTrailingClick ?: onPlay).invoke() }) {
-            Text(text = trailingLabel, color = MaterialTheme.colorScheme.primary)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            if (extraActions == null) {
+                TextButton(
+                    onClick = { (onTrailingClick ?: onPlay).invoke() },
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(
+                        text = trailingLabel,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+            } else {
+                CompactSongActionButton(
+                    onClick = { (onTrailingClick ?: onPlay).invoke() },
+                    tint = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlaylistAdd,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                extraActions()
+            }
+
+            CompactSongActionButton(
+                onClick = {
+                    optimisticFavorite = !optimisticFavorite
+                    onToggleFavorite()
+                },
+                tint = favoriteTint
+            ) {
+                Icon(
+                    imageVector = if (optimisticFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .scale(favoriteScale)
+                )
+            }
         }
-        IconButton(onClick = {
-            optimisticFavorite = !optimisticFavorite
-            onToggleFavorite()
-        }) {
-            Icon(
-                imageVector = if (optimisticFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = "Favorito",
-                tint = favoriteTint,
-                modifier = Modifier.scale(favoriteScale)
-            )
+    }
+}
+
+@Composable
+private fun CompactSongActionButton(
+    onClick: () -> Unit,
+    tint: androidx.compose.ui.graphics.Color,
+    content: @Composable () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(30.dp)
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides tint
+        ) {
+            content()
         }
     }
 }

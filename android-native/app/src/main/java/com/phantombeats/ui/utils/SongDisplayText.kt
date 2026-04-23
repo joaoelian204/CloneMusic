@@ -26,7 +26,12 @@ fun Song.toDisplayText(): SongDisplayText {
 
     val rawTitle = title.trim().trimTitleDelimiters()
     val (titleWithoutAlbumSuffix, albumFromTitleSuffix) = rawTitle.extractAlbumSuffixFromTitle()
-    val (titleWithoutFeat, featuredArtists) = titleWithoutAlbumSuffix.extractFeaturedArtists()
+    val (titleWithoutCollaborators, collaboratorArtists) = titleWithoutAlbumSuffix.extractCollaboratorArtists()
+    val (titleWithoutFeat, featuredArtists) = titleWithoutCollaborators.extractFeaturedArtists()
+    val secondaryArtists = (collaboratorArtists + featuredArtists)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.normalizeForCompare() }
 
     var inferredArtist: String? = null
     val titleSplit = titleWithoutFeat.splitArtistAndTitle()
@@ -93,7 +98,7 @@ fun Song.toDisplayText(): SongDisplayText {
 
     val subtitleParts = buildList<String> {
         if (displayArtist.isNotBlank()) add(displayArtist)
-        featuredArtists.forEach { guest ->
+        secondaryArtists.forEach { guest ->
             val guestNorm = guest.normalizeForCompare()
             if (guestNorm.isNotBlank() && this.none { it.normalizeForCompare() == guestNorm }) {
                 add(guest)
@@ -121,6 +126,31 @@ fun Song.toDisplayText(): SongDisplayText {
         title = cleanTitle,
         subtitle = subtitleText
     )
+}
+
+private fun String.extractCollaboratorArtists(): Pair<String, List<String>> {
+    val guests = mutableListOf<String>()
+    var baseTitle = this
+
+    val parentheticalRegex = Regex("(?i)\\s*[\\(\\[\\{]\\s*(?:con|with|w/|junto\\s+a)\\s+([^\\)\\]\\}]+)\\s*[\\)\\]\\}]")
+    parentheticalRegex.findAll(baseTitle).forEach { match ->
+        guests += match.groupValues.getOrNull(1).orEmpty().splitFeaturedGuests()
+    }
+    baseTitle = baseTitle.replace(parentheticalRegex, " ")
+
+    val tailRegex = Regex("(?i)\\s*(?:-|\\|)\\s*(?:con|with|w/|junto\\s+a)\\s+(.+?)\\s*$")
+    val tailMatch = tailRegex.find(baseTitle)
+    if (tailMatch != null) {
+        guests += tailMatch.groupValues.getOrNull(1).orEmpty().splitFeaturedGuests()
+        baseTitle = baseTitle.substring(0, tailMatch.range.first)
+    }
+
+    val cleanGuests = guests
+        .map { it.trimFeaturedDecorators() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.normalizeForCompare() }
+
+    return baseTitle.trimTitleDelimiters() to cleanGuests
 }
 
 private fun String.normalizeForCompare(): String {

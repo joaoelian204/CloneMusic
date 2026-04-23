@@ -14,6 +14,38 @@ import javax.inject.Singleton
 @Singleton
 class ClientStreamResolver @Inject constructor() : StreamResolver {
 
+    private fun AudioStream.normalizedBitrateKbps(): Int {
+        val raw = averageBitrate
+        if (raw <= 0) return Int.MAX_VALUE
+        return if (raw > 1024) raw / 1000 else raw
+    }
+
+    private fun AudioStream.containerPreference(): Int {
+        val suffix = format?.suffix?.lowercase().orEmpty()
+        return when (suffix) {
+            "webm" -> 3
+            "m4a" -> 2
+            else -> 1
+        }
+    }
+
+    private fun AudioStream.lowBitratePenalty(): Int {
+        val bitrate = normalizedBitrateKbps()
+        if (bitrate in 48..64) return 0
+        if (bitrate == Int.MAX_VALUE) return 9999
+        return kotlin.math.abs(bitrate - 56) + 100
+    }
+
+    private fun pickPreferredStream(audioStreams: List<AudioStream>): AudioStream? {
+        return audioStreams
+            .sortedWith(
+                compareBy<AudioStream> { it.lowBitratePenalty() }
+                    .thenByDescending { it.containerPreference() }
+                    .thenBy { it.normalizedBitrateKbps() }
+            )
+            .firstOrNull()
+    }
+
     override suspend fun getStreamUrl(videoId: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             val youtubeService = ServiceList.YouTube
@@ -22,11 +54,7 @@ class ClientStreamResolver @Inject constructor() : StreamResolver {
             extractor.fetchPage()
 
             val audioStreams: List<AudioStream> = extractor.audioStreams
-            // Priorizamos OPUS/WebM de más alta calidad (~160kbps) vs M4A (~128kbps)
-            val stream = audioStreams.find { it.format?.suffix == "webm" } 
-                ?: audioStreams.find { it.format?.suffix == "m4a" }
-                ?: audioStreams.maxByOrNull { it.averageBitrate } // O cualquier método disponible
-                ?: audioStreams.firstOrNull()
+            val stream = pickPreferredStream(audioStreams)
 
             if (stream != null && stream.content.isNotBlank()) {
                 Result.success(stream.content)
@@ -52,10 +80,7 @@ class ClientStreamResolver @Inject constructor() : StreamResolver {
                 streamExtractor.fetchPage()
 
                 val audioStreams = streamExtractor.audioStreams
-                val stream = audioStreams.find { it.format?.suffix == "webm" }
-                    ?: audioStreams.find { it.format?.suffix == "m4a" }
-                    ?: audioStreams.maxByOrNull { it.averageBitrate }
-                    ?: audioStreams.firstOrNull()
+                val stream = pickPreferredStream(audioStreams)
 
                 if (stream != null && stream.content.isNotBlank()) {
                     return@withContext Result.success(stream.content)

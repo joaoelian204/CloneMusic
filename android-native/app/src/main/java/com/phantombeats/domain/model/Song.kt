@@ -9,6 +9,8 @@ data class Song(
     val provider: String,
     val localPath: String? = null,
     val playCount: Int = 0,
+    val skipCount: Int = 0,
+    val lastPlayed: Long = 0L,
     val isFavorite: Boolean = false,
     val isDownloaded: Boolean = localPath != null && !localPath.startsWith("__PENDING__")
 )

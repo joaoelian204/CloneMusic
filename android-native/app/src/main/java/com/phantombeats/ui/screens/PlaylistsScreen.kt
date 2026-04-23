@@ -2,9 +2,12 @@ package com.phantombeats.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -24,22 +28,27 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,6 +73,7 @@ import com.phantombeats.ui.viewmodels.PlaylistViewModel
 @Composable
 fun PlaylistsScreen(
     playerViewModel: PlayerViewModel,
+    onOpenDownloads: () -> Unit = {},
     playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -71,6 +82,11 @@ fun PlaylistsScreen(
     val selectedSongs by playlistViewModel.selectedPlaylistSongs.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val playlistDownloadState by playerViewModel.playlistDownloadState.collectAsState()
+    val queuedPlaylistCount by playerViewModel.queuedPlaylistCount.collectAsState()
+    val queuedPlaylistIds by playerViewModel.queuedPlaylistIds.collectAsState()
+    val adaptiveBatteryModeEnabled by playerViewModel.adaptiveBatteryModeEnabled.collectAsState()
+    val wifiOnlyDownloadsEnabled by playerViewModel.wifiOnlyDownloadsEnabled.collectAsState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
@@ -78,9 +94,16 @@ fun PlaylistsScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var renamePlaylistName by remember { mutableStateOf("") }
+    var showDownloadOptions by remember { mutableStateOf(false) }
+    var showSongDownloadOptionsForId by remember { mutableStateOf<String?>(null) }
 
     val canManageSelectedPlaylist = selectedPlaylist?.name != "Mis Favoritas"
     val isPlaylistPlaying = isPlaying && currentSong != null && selectedSongs.any { it.id == currentSong?.id }
+    val selectedPlaylistDownload = playlistDownloadState?.takeIf { it.playlistId == selectedPlaylist?.id }
+    val selectedPlaylistInQueue = selectedPlaylist?.id?.let { it in queuedPlaylistIds } == true
+    val isDownloadingPlaylist = selectedPlaylistDownload?.isRunning == true
+    val isPausedPlaylistDownload = selectedPlaylistDownload?.isPaused == true
+    val downloadProgress = selectedPlaylistDownload?.progress
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -119,10 +142,14 @@ fun PlaylistsScreen(
 
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(playlists, key = { it.id }) { playlist ->
-                    ModeChip(
+                    PlaylistSelectableChip(
                         label = playlist.name,
                         selected = selectedPlaylist?.id == playlist.id,
-                        onClick = { playlistViewModel.selectPlaylist(playlist.id) }
+                        onClick = { playlistViewModel.selectPlaylist(playlist.id) },
+                        onLongPress = {
+                            playlistViewModel.selectPlaylist(playlist.id)
+                            showDownloadOptions = true
+                        }
                     )
                 }
             }
@@ -230,6 +257,125 @@ fun PlaylistsScreen(
                                 playerViewModel.playSongsQueue(selectedSongs, selectedSongs.indices.random())
                             }
                         }
+                        Box {
+                            IconActionChip(
+                                icon = if (isDownloadingPlaylist) Icons.Default.Pause else Icons.Default.Download,
+                                contentDescription = if (isDownloadingPlaylist || isPausedPlaylistDownload || selectedPlaylistInQueue) "Opciones de descarga" else "Descargar playlist",
+                                isActive = isDownloadingPlaylist || isPausedPlaylistDownload || selectedPlaylistInQueue,
+                                progress = downloadProgress
+                                ,onLongClick = {
+                                    if (selectedPlaylist != null) {
+                                        showDownloadOptions = true
+                                    }
+                                }
+                            ) {
+                                val currentPlaylist = selectedPlaylist ?: return@IconActionChip
+
+                                if (selectedPlaylistDownload != null || selectedPlaylistInQueue) {
+                                    showDownloadOptions = true
+                                } else {
+                                    val songsToDownload = selectedSongs.filter { it.provider != "Local" }
+                                    if (songsToDownload.isNotEmpty()) {
+                                        playerViewModel.togglePlaylistDownload(currentPlaylist.id, selectedSongs)
+                                        Toast.makeText(context, "Descarga iniciada (${songsToDownload.size})", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "No hay canciones online para descargar", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = showDownloadOptions,
+                                onDismissRequest = { showDownloadOptions = false }
+                            ) {
+                                val playlistId = selectedPlaylist?.id
+
+                                if (isDownloadingPlaylist && playlistId != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Pausar") },
+                                        onClick = {
+                                            playerViewModel.pausePlaylistDownload(playlistId)
+                                            showDownloadOptions = false
+                                        }
+                                    )
+                                }
+
+                                if (isPausedPlaylistDownload && playlistId != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Seguir") },
+                                        onClick = {
+                                            playerViewModel.resumePlaylistDownload(playlistId)
+                                            showDownloadOptions = false
+                                        }
+                                    )
+                                }
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (adaptiveBatteryModeEnabled) {
+                                                "Modo ahorro: activo"
+                                            } else {
+                                                "Modo ahorro: inactivo"
+                                            }
+                                        )
+                                    },
+                                    onClick = {
+                                        playerViewModel.setAdaptiveBatteryModeEnabled(!adaptiveBatteryModeEnabled)
+                                        showDownloadOptions = false
+                                    }
+                                )
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (wifiOnlyDownloadsEnabled) {
+                                                "Descargar solo con Wi-Fi: activo"
+                                            } else {
+                                                "Descargar solo con Wi-Fi: inactivo"
+                                            }
+                                        )
+                                    },
+                                    onClick = {
+                                        playerViewModel.setWifiOnlyDownloadsEnabled(!wifiOnlyDownloadsEnabled)
+                                        showDownloadOptions = false
+                                    }
+                                )
+
+                                if (selectedPlaylistDownload != null && playlistId != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Cancelar descarga") },
+                                        onClick = {
+                                            playerViewModel.cancelPlaylistDownload(
+                                                playlistId = playlistId,
+                                                clearDownloadedFromPlaylist = true
+                                            )
+                                            Toast.makeText(context, "Descarga cancelada y limpiada", Toast.LENGTH_SHORT).show()
+                                            showDownloadOptions = false
+                                        }
+                                    )
+                                }
+
+                                if (selectedPlaylistInQueue && playlistId != null && selectedPlaylistDownload == null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Cancelar cola") },
+                                        onClick = {
+                                            playerViewModel.cancelPlaylistDownload(playlistId)
+                                            Toast.makeText(context, "Playlist removida de la cola", Toast.LENGTH_SHORT).show()
+                                            showDownloadOptions = false
+                                        }
+                                    )
+                                }
+
+                                DropdownMenuItem(
+                                    text = { Text("Ver mis descargas") },
+                                    onClick = {
+                                        onOpenDownloads()
+                                        showDownloadOptions = false
+                                    }
+                                )
+                            }
+                        }
                     }
 
                     Box(
@@ -245,9 +391,32 @@ fun PlaylistsScreen(
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = if (isPlaylistPlaying) "Reproduciendo" else "Lista preparada",
+                            text = when {
+                                isDownloadingPlaylist -> {
+                                    val state = selectedPlaylistDownload
+                                    if (state == null) {
+                                        "Descargando"
+                                    } else {
+                                        val percent = (state.progress * 100).toInt().coerceIn(0, 100)
+                                        "$percent% • ${formatBytes(state.estimatedDownloadedBytes)} / ${formatBytes(state.estimatedTotalBytes)}"
+                                    }
+                                }
+                                isPausedPlaylistDownload -> {
+                                    val state = selectedPlaylistDownload
+                                    if (state == null) {
+                                        "Pausado"
+                                    } else {
+                                        val reason = state.pauseReason?.let { " • $it" } ?: ""
+                                        "Pausado$reason • faltan ${formatBytes(state.remainingBytes)}"
+                                    }
+                                }
+                                selectedPlaylistInQueue -> "En cola para descargar"
+                                queuedPlaylistCount > 0 -> "En cola: $queuedPlaylistCount playlists"
+                                isPlaylistPlaying -> "Reproduciendo"
+                                else -> "Lista preparada"
+                            },
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (isPlaylistPlaying) {
+                            color = if (isDownloadingPlaylist || isPausedPlaylistDownload || isPlaylistPlaying) {
                                 MaterialTheme.colorScheme.primary
                             } else {
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
@@ -255,6 +424,26 @@ fun PlaylistsScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                }
+
+                if (isDownloadingPlaylist || isPausedPlaylistDownload) {
+                    val progressValue = selectedPlaylistDownload?.progress ?: 0f
+                    val animatedBarProgress by animateFloatAsState(
+                        targetValue = progressValue.coerceIn(0f, 1f),
+                        label = "playlist-download-bar"
+                    )
+                    LinearProgressIndicator(
+                        progress = animatedBarProgress,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        color = if (isPausedPlaylistDownload) {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f)
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    )
                 }
             }
 
@@ -286,6 +475,10 @@ fun PlaylistsScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(selectedSongs, key = { it.id }) { song ->
+                            val isSongCurrentDownload = selectedPlaylistDownload?.currentSongId == song.id
+                            val isSongPausedDownload = selectedPlaylistDownload?.pausedSongId == song.id
+                            val isSongPendingDownload = song.localPath?.startsWith("__PENDING__") == true
+
                             Row(modifier = Modifier.padding(start = 8.dp)) {
                                 SongRowCard(
                                     song = song,
@@ -297,12 +490,48 @@ fun PlaylistsScreen(
                                     },
                                     onToggleFavorite = { playerViewModel.setFavorite(song, !song.isFavorite) },
                                     trailingLabel = "Quitar",
-                                    onTrailingClick = { playlistViewModel.removeSongFromSelected(song.id) }
+                                    onTrailingClick = { playlistViewModel.removeSongFromSelected(song.id) },
+                                    onLongPress = {
+                                        if (isSongCurrentDownload || isSongPausedDownload || isSongPendingDownload) {
+                                            showSongDownloadOptionsForId = song.id
+                                        }
+                                    }
                                 )
                             }
                         }
                     }
                 }
+            }
+        }
+
+        showSongDownloadOptionsForId?.let { songId ->
+            val activeState = selectedPlaylistDownload
+            val canPause = activeState?.isRunning == true && activeState.currentSongId == songId
+            val canResume = activeState?.isPaused == true && activeState.pausedSongId == songId
+            val canCancel = canPause || canResume || selectedSongs.any { it.id == songId && it.localPath?.startsWith("__PENDING__") == true }
+
+            if (canPause || canResume || canCancel) {
+                SongDownloadActionsDialog(
+                    canPause = canPause,
+                    canResume = canResume,
+                    canCancel = canCancel,
+                    onDismiss = { showSongDownloadOptionsForId = null },
+                    onPause = {
+                        playerViewModel.pauseCurrentDownloadSong(songId)
+                        showSongDownloadOptionsForId = null
+                    },
+                    onResume = {
+                        playerViewModel.resumeCurrentDownloadSong(songId)
+                        showSongDownloadOptionsForId = null
+                    },
+                    onCancel = {
+                        playerViewModel.cancelCurrentDownloadSong(songId)
+                        Toast.makeText(context, "Descarga cancelada", Toast.LENGTH_SHORT).show()
+                        showSongDownloadOptionsForId = null
+                    }
+                )
+            } else {
+                showSongDownloadOptionsForId = null
             }
         }
 
@@ -533,13 +762,21 @@ private fun ConfirmDeletePlaylistDialog(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun IconActionChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     isActive: Boolean = false,
+    progress: Float? = null,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = (progress ?: 0f).coerceIn(0f, 1f),
+        label = "icon-chip-progress"
+    )
+
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
@@ -555,13 +792,123 @@ private fun IconActionChip(
                 if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.52f) else PhantomBorderAlpha,
                 RoundedCornerShape(999.dp)
             )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
-        IconButton(onClick = onClick) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.primary
+        if (progress != null) {
+            CircularProgressIndicator(
+                progress = animatedProgress,
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(30.dp)
             )
         }
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(10.dp)
+                .size(22.dp)
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PlaylistSelectableChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface
+            )
+            .border(1.dp, PhantomBorderAlpha, RoundedCornerShape(999.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongPress
+            )
+            .padding(horizontal = 14.dp, vertical = 7.dp)
+    ) {
+        Text(
+            text = label,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun SongDownloadActionsDialog(
+    canPause: Boolean,
+    canResume: Boolean,
+    canCancel: Boolean,
+    onDismiss: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onCancel: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        title = {
+            Text(
+                text = "Opciones de descarga",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (canPause) {
+                    TextButton(onClick = onPause, modifier = Modifier.fillMaxWidth()) {
+                        Text("Pausar")
+                    }
+                }
+                if (canResume) {
+                    TextButton(onClick = onResume, modifier = Modifier.fillMaxWidth()) {
+                        Text("Seguir")
+                    }
+                }
+                if (canCancel) {
+                    TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                        Text("Cancelar")
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        }
+    )
+}
+
+private fun formatBytes(bytes: Long): String {
+    val safe = bytes.coerceAtLeast(0L)
+    val kb = 1024.0
+    val mb = kb * 1024.0
+    val gb = mb * 1024.0
+
+    return when {
+        safe >= gb -> String.format("%.1f GB", safe / gb)
+        safe >= mb -> String.format("%.1f MB", safe / mb)
+        safe >= kb -> String.format("%.0f KB", safe / kb)
+        else -> "$safe B"
     }
 }
